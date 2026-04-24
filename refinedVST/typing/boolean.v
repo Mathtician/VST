@@ -255,9 +255,9 @@ Section generic_boolean.
   Definition type_if_generic_boolean'_inst := [instance type_if_generic_boolean'].
   Global Existing Instance type_if_generic_boolean'_inst.
 
-  Lemma type_assert_generic_boolean Espec ge v stn it (b : bool) s f R :
-    (<affine> ⌜b⌝ ∗ typed_stmt Espec ge s f R)
-    ⊢ typed_assert Espec ge it v ⎡v ◁ᵥₐₗ|it| b @ generic_boolean stn it⎤ s f R.
+  Lemma type_assert_generic_boolean v stn it (b : bool) R :
+    (<affine> ⌜b⌝ ∗ T_normal R)
+    ⊢ typed_assert it v ⎡v ◁ᵥₐₗ|it| b @ generic_boolean stn it⎤ R.
   Proof.
     iIntros "[% ?] (%n&%&%&%&%Hb)". destruct b; last by exfalso.
     destruct it; destruct_and? => //; simplify_eq/=; try (by destruct v); iFrame.
@@ -266,7 +266,7 @@ Section generic_boolean.
   Qed.
   Definition type_assert_generic_boolean_inst := [instance type_assert_generic_boolean].
   (*Global Existing Instance type_assert_generic_boolean_inst.*)
-  Global Instance type_assert_generic_boolean_inst' Espec ge v stn it (b : bool) : TypedAssert Espec ge it v ⎡v ◁ᵥₐₗ|it| b @ generic_boolean stn it⎤ := type_assert_generic_boolean_inst Espec ge v stn it b.
+  Global Instance type_assert_generic_boolean_inst' v stn it (b : bool) : TypedAssert it v ⎡v ◁ᵥₐₗ|it| b @ generic_boolean stn it⎤ := type_assert_generic_boolean_inst v stn it b.
 End generic_boolean.
 
 Section boolean.

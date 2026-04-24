@@ -255,14 +255,15 @@ Section judgements.
   Class TypedSwitch (v : val) (ty : type) (it : Ctypes.type) : Type :=
     typed_switch_proof ls fn R : iProp_to_Prop (typed_switch v ty it ls fn R).
 
-  Definition typed_assert (ot : Ctypes.type) (v : val) (P : assert) (s : statement) (fn : function) (R : type_ret_assert) : assert :=
+  Definition typed_assert (ot : Ctypes.type) (v : val) (P : assert) R : assert :=
     (P -∗
        match ot with
-       | Tint _ _ _ | Tlong _ _ => ∃ z, <affine> ⌜val_to_Z v ot = Some z⌝ ∗ <affine> ⌜z ≠ 0⌝ ∗ typed_stmt s fn R
-       | _ => <affine> ⌜bool_val ot v = Some true⌝ ∗ typed_stmt s fn R
+       | Tint _ _ _ | Tlong _ _ => ∃ z, <affine> ⌜val_to_Z v ot = Some z⌝ ∗ <affine> ⌜z ≠ 0⌝ ∗ T_normal R
+       | Tpointer _ _ => <affine> ⌜bool_val ot v = Some true⌝ ∗ ⎡valid_val v⎤ ∧ T_normal R
+       | _ => <affine> ⌜bool_val ot v = Some true⌝ ∗ T_normal R
        end)%I.
   Class TypedAssert (ot : Ctypes.type) (v : val) (P : assert) : Type :=
-    typed_assert_proof s fn R : iProp_to_Prop (typed_assert ot v P s fn R).
+    typed_assert_proof R : iProp_to_Prop (typed_assert ot v P R).
 
   (*** expressions *)
 
@@ -726,7 +727,7 @@ Global Hint Mode CopyAsDefined + + + + + + + + : typeclass_instances.
 Global Hint Mode SimpleSubsumePlace + + + + + ! - : typeclass_instances.
 Global Hint Mode SimpleSubsumeVal + + + + + ! ! - : typeclass_instances.
 Global Hint Mode TypedIf + + + + + : typeclass_instances.
-Global Hint Mode TypedAssert + + + + + + + + + : typeclass_instances.
+Global Hint Mode TypedAssert + + + + + + + : typeclass_instances.
 Global Hint Mode TypedValue + + + + + + : typeclass_instances.
 Global Hint Mode TypedBinOp + + + + + + + + + + + + + : typeclass_instances.
 Global Hint Mode TypedUnOp + + + + + + + + + : typeclass_instances.
@@ -1031,7 +1032,7 @@ Ltac generate_i2p_instance_to_tc_hook arg c ::=
   | typed_annot_expr ?x1 ?x2 ?x3 ?x4 => constr:(TypedAnnotExpr x1 x2 x3 x4)
 (*   | typed_macro_expr ?x1 ?x2 => constr:(TypedMacroExpr x1 x2) *)
   | typed_if ?x1 ?x2 ?x3 ?x4 => constr:(TypedIf x1 x2 x3 x4)
-  | typed_assert ?x1 ?x2 ?x3 ?x4 ?x5 => constr:(TypedAssert x1 x2 x3 x4 x5)
+  | typed_assert ?x1 ?x2 ?x3 => constr:(TypedAssert x1 x2 x3)
   | typed_switch ?x1 ?x2 ?x3 => constr:(TypedSwitch x1 x2 x3)
   | typed_annot_stmt ?x1 ?x2 ?x3 => constr:(TypedAnnotStmt x1 x2 x3)
   | copy_as ?x1 ?x2 ?x3 ?x4 => constr:(CopyAs x1 x2 x3 x4)
@@ -1572,16 +1573,16 @@ Section typing.
   Definition typed_if_simplify_inst := [instance typed_if_simplify].
   Global Existing Instance typed_if_simplify_inst | 1000.
 
-(*  Lemma typed_assert_simplify ot v P n {SH : SimplifyHyp P (Some n)} s fn ls R Q:
+  Lemma typed_assert_simplify ot v P n {SH : SimplifyHyp P (Some n)} R:
     (SH (find_in_context (FindValP v) (λ P',
-       typed_assert ot v P' s fn ls R Q))).(i2p_P)
-    ⊢ typed_assert ot v P s fn ls R Q.
+       typed_assert ot v P' R))).(i2p_P)
+    ⊢ typed_assert ot v P R.
   Proof.
     iIntros "Hs Hv". iDestruct (i2p_proof with "Hs Hv") as (P') "[HP' HT]" => /=. simpl in *.
     iApply ("HT" with "HP'").
   Qed.
   Definition typed_assert_simplify_inst := [instance typed_assert_simplify].
-  Global Existing Instance typed_assert_simplify_inst | 1000. *)
+  Global Existing Instance typed_assert_simplify_inst | 1000.
 
   (*** statements *)
 
@@ -1797,23 +1798,50 @@ Section typing.
     rewrite /typed_stmt -wp_label //.
   Qed.
 
-(*  Lemma type_assert Q ot e s fn ls R:
-    typed_val_expr e (λ v ty, typed_assert ot v (v ◁ᵥ ty) s fn ls R Q)
-    ⊢ typed_stmt (assert{ot}: e; s) fn ls R Q.
+  Lemma type_assert Espec ge f e R:
+    typed_val_expr ge f e (λ v ty, typed_assert (typeof e) v ⎡v ◁ᵥₐₗ|typeof e| ty⎤ R)
+    ⊢ typed_stmt Espec ge (Sassert e) f R.
   Proof.
-    iIntros "He" (Hls). wps_bind.
+    rewrite /typed_stmt.
+    iIntros "He".
+    rewrite /Sassert -wp_if.
     iApply "He". iIntros (v ty) "Hv Hs".
     iDestruct ("Hs" with "Hv") as "Hs".
-    destruct ot => //.
-    - iDestruct "Hs" as (???) "Hs".
-      iApply wps_assert_bool; [done|done|..]. by iApply "Hs".
-    - iDestruct "Hs" as (???) "Hs".
-      iApply wps_assert_int; [done|done|..]. by iApply "Hs".
-    - iDestruct "Hs" as (???) "[Hpre Hs]".
-      iApply (wps_assert_ptr with "Hpre"); [done..|]. by iApply "Hs".
+    destruct (typeof e) => //=; try by iDestruct "Hs" as "(% & ?)".
+    - iDestruct "Hs" as (z) "(%Hz & % & H)".
+      destruct v => //=.
+      iNext; iSplit => //.
+      iExists _; iSplit => //.
+      destruct (Int.eq _ _) eqn: Heq.
+      { apply Int.same_if_eq in Heq as ->; simpl in Hz.
+        destruct s; inv Hz. }
+      rewrite /= -wp_skip //.
+    - iDestruct "Hs" as (z) "(%Hz & % & H)".
+      destruct v => //=.
+      iNext; iSplit => //.
+      iExists _; iSplit => //.
+      destruct (Int64.eq _ _) eqn: Heq.
+      { apply Int64.same_if_eq in Heq as ->; simpl in Hz.
+        destruct s; inv Hz. }
+      rewrite /= -wp_skip //.
+    - rewrite /bool_val; iDestruct "Hs" as "(% & H)"; destruct f0.
+      + rewrite /bool_val_s in H.
+        destruct v; inv H; simpl.
+        iNext; iSplit => //.
+        iExists _; iSplit => //.
+        rewrite H1 -wp_skip //.
+      + rewrite /bool_val_f in H.
+        destruct v; inv H; simpl.
+        iNext; iSplit => //.
+        iExists _; iSplit => //.
+        rewrite H1 -wp_skip //.
+    - iDestruct "Hs" as "(% & H)".
+      iNext; iSplit; first by rewrite bi.and_elim_l.
+      rewrite H; iExists _; iSplit => //=.
+      rewrite -wp_skip bi.and_elim_r //.
   Qed.
 
-  Lemma type_exprs s e fn ls R Q:
+  (*Lemma type_exprs s e fn ls R Q:
     (typed_val_expr e (λ v ty, v ◁ᵥ ty -∗ typed_stmt s fn ls R Q))
     ⊢ typed_stmt (ExprS e s) fn ls R Q.
   Proof.

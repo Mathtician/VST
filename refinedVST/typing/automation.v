@@ -282,6 +282,7 @@ Ltac liRStmt :=
             notypeclasses refine (tac_fast_apply (type_annot_stmt_assert P _ _ _ _ _) _)
         end
       | Sannot _ => notypeclasses refine (tac_fast_apply (type_annot_stmt _ _ _ _ _) _)
+      | Sassert _ => notypeclasses refine (tac_fast_apply (type_assert _ _ _ _ _) _)
       | Sskip => notypeclasses refine (tac_fast_apply (type_skips _ _ _ _) _)
       | Scall _ _ _ => notypeclasses refine (tac_fast_apply (type_call_syn _ _ _ _ _ _ _ _ _ _) _)
       | Sifthenelse _ _ _ => notypeclasses refine (tac_fast_apply (type_if _ _ _ _ _ _ _) _)

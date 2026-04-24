@@ -308,9 +308,9 @@ Section own.
   Definition type_if_ptr_own_inst := [instance type_if_ptr_own].
   Global Existing Instance type_if_ptr_own_inst.
 
-  Lemma type_assert_ptr_own Espec l β ty t s f R:
-    (⎡l ◁ₗ{β} ty⎤ -∗ (*(loc_in_bounds l 0 ∗ True) ∧*) typed_stmt Espec ge s f R)
-    ⊢ typed_assert Espec ge (tptr t) l ⎡l ◁ₗ{β} ty⎤ s f R.
+  Lemma type_assert_ptr_own l β ty t R:
+    (⎡l ◁ₗ{β} ty⎤ -∗ ⎡weak_valid_pointer l⎤ ∧ T_normal R)
+    ⊢ typed_assert (tptr t) l ⎡l ◁ₗ{β} ty⎤ R.
   Proof.
     iIntros "HT1 Hl".
     iDestruct ("HT1" with "Hl") as "$".

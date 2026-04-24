@@ -16,3 +16,10 @@ Definition Sloop (n : nat) s1 s2 := Sloop s1 s2.
 Global Typeclasses Opaque Sloop.
 
 Definition Swhile (n : nat) e s := Sloop n (Ssequence (Sifthenelse e Sskip Sbreak) s) Sskip.
+
+(* always-stuck statement *)
+Definition Sstuck := Sset (BinPos.Pos.of_nat 1) (Ederef (Econst_long Integers.Int64.zero (Ctypes.Tpointer Ctypes.Tvoid Ctypes.noattr)) Ctypes.Tvoid).
+
+Definition Sassert (e : expr) := Sifthenelse e Sskip Sstuck.
+#[global] Arguments Sassert : simpl never.
+Global Typeclasses Opaque Sassert.

@@ -1,6 +1,7 @@
 From VST.typing Require Export type.
 From VST.typing Require Import programs own.
 From VST.typing Require Import type_options.
+From VST.typing Require Export typing.
 
 (* TODO: Should this also contain a persistent [malloc_initialized]? *)
 Class mallocG Σ := {

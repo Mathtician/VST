@@ -116,6 +116,8 @@ We will need an additional parameter
 
  *)
 
+Notation loc := address.
+
 Definition adr2val (l : address) := Vptr l.1 l.2.
 Coercion adr2val : address >-> val.
 

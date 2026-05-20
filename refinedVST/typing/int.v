@@ -338,6 +338,12 @@ Global Hint Resolve val_to_Z_by_value : core.
 
 (* Typeclasses Opaque int. *)
 Notation "int< it >" := (int it) (only printing, format "'int<' it '>'") : printing_sugar.
+Notation i32 := tint.
+Notation u32 := tuint.
+Notation i64 := tlong.
+Notation u64 := tulong.
+Notation i8 := tschar.
+Notation u8 := tuchar.
 
 Definition unsigned_op sz sg :=
   match sz, sg with

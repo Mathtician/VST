@@ -224,12 +224,33 @@ Section coq_tactics.
   Lemma tac_embed_true `{!BiEmbed prop0 prop} Δ :
     envs_entails Δ (⎡True%I : prop0⎤ : prop).
   Proof. rewrite envs_entails_unseal. rewrite embed_pure. by iIntros "_". Qed.
+
+  Lemma tac_affine_true Δ `{!TCForall Affine (env_to_list (env_spatial Δ))} :
+    envs_entails Δ (<affine> True%I : prop).
+  Proof. rewrite envs_entails_unseal. by iIntros "_". Qed.
+
+  Lemma tac_embed_affine_true `{!BiEmbed prop0 prop} `{!BiEmbedEmp prop0 prop} Δ `{!TCForall Affine (env_to_list (env_spatial Δ))} :
+    envs_entails Δ (⎡<affine> True%I : prop0⎤ : prop).
+  Proof. rewrite envs_entails_unseal. rewrite embed_affinely embed_pure. by iIntros "_". Qed.
+
+  Lemma tac_emp Δ `{!TCForall Affine (env_to_list (env_spatial Δ))} :
+    envs_entails Δ (emp : prop).
+  Proof. rewrite envs_entails_unseal. by iIntros "_". Qed.
+
+  Lemma tac_embed_emp `{!BiEmbed prop0 prop} `{!BiEmbedEmp prop0 prop} Δ `{!TCForall Affine (env_to_list (env_spatial Δ))} :
+    envs_entails Δ (⎡emp : prop0⎤ : prop).
+  Proof. rewrite envs_entails_unseal. rewrite embed_emp. by iIntros "_". Qed.
+
 End coq_tactics.
 
 Ltac liTrue :=
   lazymatch goal with
   | |- envs_entails _ True => notypeclasses refine (tac_true _)
-  | |- envs_entails _ ⎡True⎤ => notypeclasses refine (tac_embed_true _)
+  | |- envs_entails _ ⎡True⎤ => notypeclasses refine (tac_embed_true _); solve [refine _]
+  | |- envs_entails _ (<affine> True) => notypeclasses refine (tac_affine_true _); solve [refine _]
+  | |- envs_entails _ ⎡<affine> True⎤ => notypeclasses refine (tac_embed_affine_true _); solve [refine _]
+  | |- envs_entails _ emp => notypeclasses refine (tac_emp _); solve [refine _]
+  | |- envs_entails _ ⎡emp⎤ => notypeclasses refine (tac_embed_emp _); solve [refine _]
   end.
 
 (** ** [liFalse] *)
@@ -1092,7 +1113,7 @@ End coq_tactics.
 Ltac liPersistent :=
   lazymatch goal with
   | |- envs_entails ?Δ (bi_intuitionistically ?P) =>
-      notypeclasses refine (tac_persistent _ _ _); li_pm_reduce
+      notypeclasses refine (tac_persistent _ _ _); first (by refine _); li_pm_reduce
   end.
 
 (** ** [liCase] *)

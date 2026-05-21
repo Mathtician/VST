@@ -157,6 +157,12 @@ Section judgements.
   Class DefinedTy cty ty : Prop :=
     defined_ty v: v ◁ᵥₐₗ|cty| ty -∗ ⌜v ≠ Vundef⌝.
 
+  Global Program Instance defined_ty_of_rty A r cty `{!∀ x : A, DefinedTy cty (x @ r)} : DefinedTy cty r.
+  Next Obligation.
+    iIntros (A r cty ? v). rewrite /ty_own_val_at /ty_own_val /=.
+    iDestruct 1 as (x) "Hl". by iApply H.
+  Qed.
+
   (* This is similar to simplify hyp place (Some 0), but targeted at
   Copy and applying all simplifications at once instead of step by
   step. We need this because copying duplicates a type and we want to

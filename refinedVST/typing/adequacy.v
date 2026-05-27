@@ -72,10 +72,10 @@ Ltac adequacy_solve_typed_function lemma unfold_tac :=
 
 (* export to base triples *)
 Definition fn_params_pre `{!VSTGS OK_ty Σ} {cs : compspecs} {A} fn fp (x : @dtfr Σ A) lsa : assert :=
-  ⎡([∗ list] v;'(cty, t) ∈ lsa;zip (map snd (fn_params fn)) (fp_atys (fp x)), v ◁ᵥₐₗ| cty | t) ∗ fp_Pa (fp x)⎤.
+  ([∗ list] v;'(cty, t) ∈ lsa;zip (map snd (fn_params fn)) (fp_atys (fp x)), v ◁ᵥₐₗ| cty | t) ∗ ⎡fp_Pa (fp x)⎤.
 
 Definition fn_params_post `{!VSTGS OK_ty Σ} {cs : compspecs} {A} fn fp (x : @dtfr Σ A) v : assert :=
-  ∃ y, ⎡opt_ty_own_val (fn_return fn) ((fp x).(fp_fr) y).(fr_rty) v⎤ ∗ ⎡((fp x).(fp_fr) y).(fr_R)⎤.
+  ∃ y, opt_ty_own_val (fn_return fn) ((fp x).(fp_fr) y).(fr_rty) v ∗ ⎡((fp x).(fp_fr) y).(fr_R)⎤.
 
 Lemma typed_function_triple : forall `{!VSTGS OK_ty Σ} {cs : compspecs} {A} Espec ge f fp
     (Hcomplete : Forall (λ it, composite_compute.complete_legal_cosu_type it.2 = true) (fn_vars f))
@@ -86,13 +86,15 @@ Proof.
   iIntros "#?" (?) "!> %% ? H0 ?"; rewrite (stackframe_of_typed(typeG0 := VST_typeG)) //.
   iApply wp_strong_mono.
   iSplitL "H0". 2: {
-    iStopProof; split => n; monPred.unseal; rewrite monPred_at_intuitionistically.
+    iStopProof; split => n; monPred.unseal; rewrite monPred_at_intuitionistically monPred_at_big_sepL2.
     iIntros "(H & (Hargs & ?) & Hstack)".
     iDestruct ("H" $! x) as "(%Htys & #H)".
     pose proof (tc_vals_length _ _ H) as Hlen; rewrite map_length in Hlen.
     apply Forall2_length in Htys as ->; rewrite Hlen.
-    iApply ("H" $! _ (Vector.of_list args)).
-    rewrite vec_to_list_to_vec; iFrame. }
+    iApply ("H" $! n _ (Vector.of_list args)).
+    rewrite vec_to_list_to_vec; iFrame.
+    iApply (big_sepL2_mono with "Hargs").
+    intros ?? (?, ?); done. }
   rewrite /= /Clight_seplog.bind_ret; iSplit.
   - rewrite /fn_params_post /=.
     iIntros "H !>"; iFrame.
@@ -104,7 +106,7 @@ Proof.
 Qed.
 
 Lemma typed_fptr_triple : forall `{!VSTGS OK_ty Σ} {cs : compspecs} {A} Espec ge fp l cty,
-  ⎡l ◁ᵥₐₗ|cty| function_ptr Espec ge fp⎤ ⊢ ∃ f, ⌜Genv.find_funct ge l = Some (Internal f)⌝ ∧ ∀ x : dtfr A, ▷ fun_triple Espec (Build_genv ge cenv_cs) (fn_params_pre f fp x) f (fn_params_post f fp x).
+  l ◁ᵥₐₗ|cty| function_ptr Espec ge fp ⊢ ∃ f, ⌜Genv.find_funct ge l = Some (Internal f)⌝ ∧ ∀ x : dtfr A, ▷ fun_triple Espec (Build_genv ge cenv_cs) (fn_params_pre f fp x) f (fn_params_post f fp x).
 Proof.
   rewrite /ty_own_val_at /ty_own_val /= /ty_own_val /=.
   intros.
@@ -112,5 +114,6 @@ Proof.
   rewrite Hty /= in Hx; subst.
   destruct x, Hfn as (? & ? & ? & ? & ? & ? & ? & ?); subst; simpl.
   iExists _; iSplit; first by iPureIntro; apply Genv.find_funct_ptr_iff.
-  rewrite -bi.later_forall embed_affinely embed_later; by iPoseProof (typed_function_triple with "H") as "H".
+  rewrite -bi.later_forall bi.affinely_elim; by iPoseProof (typed_function_triple with "H") as "H".
 Qed.
+ 

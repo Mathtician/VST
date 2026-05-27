@@ -529,22 +529,22 @@ Ltac repeat' tac :=
 Section additional_instances.
 
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
-  Global Instance related_to_val_embed A v cty ty : RelatedTo (λ x : A, (⎡v ◁ᵥₐₗ|cty| ty x⎤))%I | 100
+  (*Global Instance related_to_val_embed A v cty ty : RelatedTo (λ x : A, (⎡v ◁ᵥₐₗ|cty| ty x⎤))%I | 100
   := {| rt_fic := FindVal cty v |}.
   Global Instance related_to_val_embed2 A v cty ty : RelatedTo (λ x : A, (⎡v ◁ᵥₐₗ|cty| ty⎤))%I | 100
   := {| rt_fic := FindVal cty v |}.
   Global Instance related_to_val_rep_v A cty v_rep ty :  RelatedTo (λ x : A, ⎡ v_rep ◁ᵥ|cty| ty x⎤:assert)%I | 100
-  := {| rt_fic := FindValP (repinject cty v_rep) |}.
+  := {| rt_fic := FindValP (repinject cty v_rep) |}.*)
   
   Lemma find_in_context_type_val_P_id  cty v (T:assert->assert):
-    (∃ ty , ⎡v ◁ᵥ|cty| ty⎤ ∗ T (⎡v ◁ᵥ|cty| ty⎤))
+    (∃ ty , v ◁ᵥ|cty| ty ∗ T (v ◁ᵥ|cty| ty))
     ⊢ find_in_context (FindValP (repinject cty v)) T.
-  Proof. intros. iDestruct 1 as "(% & ? & ?)". iExists ⎡ty_own_val ty _ _⎤ => /=. iFrame. Qed.
+  Proof. intros. iDestruct 1 as "(% & ? & ?)". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
   Definition find_in_context_type_val_P_id_inst :=
     [instance find_in_context_type_val_P_id with FICSyntactic].
   Global Existing Instance find_in_context_type_val_P_id_inst | 1.
 
-  Lemma simple_subsume_val_to_subsume_embed (A:Type) cty (v : reptype cty)  (ty1 : type) (ty2 : A → type) (P:A->mpred)
+  (*Lemma simple_subsume_val_to_subsume_embed (A:Type) cty (v : reptype cty)  (ty1 : type) (ty2 : A → type) (P:A->mpred)
     `{!∀ (x:A), SimpleSubsumeVal cty ty1 (ty2 x) (P x)} (T: A-> assert) :
     (∃ x, (@embed mpred assert _ $ P x) ∗ T x) ⊢@{assert} subsume (⎡v ◁ᵥ|cty| ty1⎤) (λ x : A, ⎡v ◁ᵥ|cty| ty2 x⎤) T.
   Proof.
@@ -554,8 +554,8 @@ Section additional_instances.
     iApply (@simple_subsume_val with "[$HP] [$]").
   Qed.
   Definition simple_subsume_val_to_subsume_embed_inst := [instance simple_subsume_val_to_subsume_embed].
-  Global Existing Instance simple_subsume_val_to_subsume_embed_inst.
-  
+  Global Existing Instance simple_subsume_val_to_subsume_embed_inst.*)
+
 End additional_instances.
 
 

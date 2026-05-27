@@ -19,18 +19,18 @@ Section globals.
   Context `{!typeG OK_ty Σ} {cs : compspecs} `{!globalG OK_ty Σ} (ge : Genv.t Clight.fundef Ctypes.type).
   Import EqNotations.
 
-  Definition global_with_type (name : ident) (β : own_state) (ty : type) : iProp Σ :=
+  Definition global_with_type (name : ident) (β : own_state) (ty : type) : assert :=
     (∃ l, <affine> ⌜Genv.find_symbol ge name = Some l⌝ ∗ (l, Ptrofs.zero) ◁ₗ{β} ty)%I.
 
   (* A version of initialized that does not depend on globalG. This is
   a work-around to allow the type of one global to refer to another as
   long as there are no cycles (see t_adequacy). The proper solution
   would be to use higher-order ghost state instead of globalG. *)
-  Definition initialized_raw {A} (name : ident) (x : A) (l' : option Values.block) (ty' : option global_type)  : iProp Σ :=
+  Definition initialized_raw {A} (name : ident) (x : A) (l' : option Values.block) (ty' : option global_type) : assert :=
     (∃ l ty, <affine> ⌜l' = Some l⌝ ∗ <affine> ⌜ty' = Some ty⌝ ∗
           ∃ Heq : A = ty.(gt_A), (l, Ptrofs.zero) ◁ₗ{Shr} ty.(gt_type) (rew [λ x, x] Heq in x))%I.
 
-  Definition initialized {A} (name : ident) (x : A) : iProp Σ :=
+  Definition initialized {A} (name : ident) (x : A) : assert :=
     initialized_raw name x (Genv.find_symbol ge name) (global_initialized_types !! name).
 
   Global Instance initialized_persistent A name (x : A) : Persistent (initialized name x).

@@ -3,6 +3,7 @@ Set Warnings "-notation-overridden,-custom-entry-overridden,-hiding-delimiting-k
 From VST.typing Require Export base annotations.
 Set Warnings "notation-overridden,custom-entry-overridden,hiding-delimiting-key".
 From VST.floyd Require Export data_at_rec_lemmas reptype_lemmas field_at.
+From VST.veric Require Export invariants.
 Set Default Proof Using "Type".
 
 Class typeG OK_ty Σ := TypeG {
@@ -258,10 +259,10 @@ Section CompatRefinedC.
   Arguments has_layout_loc : simpl never.
   Global Typeclasses Opaque has_layout_loc.
 
-  Definition mapsto (l : address) (q : Share.t) (cty : Ctypes.type) v : mpred :=
-    data_at_rec q cty v l.
+  Definition mapsto (l : address) (q : Share.t) (cty : Ctypes.type) v : assert :=
+    ⎡data_at_rec q cty v l⎤.
 
-  Definition mapsto_layout (l : address) (q : Share.t) (cty : Ctypes.type) : mpred :=
+  Definition mapsto_layout (l : address) (q : Share.t) (cty : Ctypes.type) : assert :=
     ∃ v, <affine> ⌜has_layout_val cty v⌝ ∗ <affine> ⌜has_layout_loc l cty⌝ ∗ mapsto l q cty v.
 
 End CompatRefinedC.
@@ -280,14 +281,14 @@ Definition own_state_min (β1 β2 : own_state) : own_state :=
 Global Instance own_state_inhabited : Inhabited own_state := populate Own.
 
 (* Should this be lower (e.g., no type and memval, and a single ↦ instead of mapsto)? *)
-Definition heap_mapsto_own_state `{!typeG OK_ty Σ} {cs : compspecs} (cty : type) (l : address) (β : own_state) v : iProp Σ :=
+Definition heap_mapsto_own_state `{!typeG OK_ty Σ} {cs : compspecs} (cty : type) (l : address) (β : own_state) v : assert :=
   match β with
   | Own => mapsto l Tsh cty v
   | Shr => inv mtN (∃ q, ⌜readable_share q⌝ ∧ mapsto l q cty v)
   end.
 Notation "l ↦[ β ]| cty | v" := (heap_mapsto_own_state cty l β v)
   (at level 20, cty at level 0, β at level 50, format "l ↦[ β ]| cty | v") : bi_scope.
-Definition heap_mapsto_own_state_type `{!typeG OK_ty Σ} {cs : compspecs} (cty : type) (l : address) (β : own_state) : iProp Σ :=
+Definition heap_mapsto_own_state_type `{!typeG OK_ty Σ} {cs : compspecs} (cty : type) (l : address) (β : own_state) : assert :=
   (∃ v, l ↦[ β ]| cty | v).
 Notation "l ↦_[ β ]| cty | " := (heap_mapsto_own_state_type cty l β)
   (at level 20, β at level 50) : bi_scope.
@@ -336,7 +337,7 @@ Section own_state.
     composite_compute.complete_legal_cosu_type cty = true →
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof cty < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs cty (Ptrofs.unsigned l.2) →
-    l ↦[β]|cty| v ={E}=∗ loc_in_bounds l (Z.to_nat (expr.sizeof cty)).
+    l ↦[β]|cty| v ={E}=∗ ⎡loc_in_bounds l (Z.to_nat (expr.sizeof cty))⎤.
     (* Unfortunately we need the view shift here -- we can't put valid_pointer outside the
        inv in the Shr case without losing persistence -- but that makes this almost
        unusable. *)
@@ -440,6 +441,7 @@ Notation "l ↦_{ sh '}' '|' cty '|' " := (mapsto_layout l sh cty)
 Notation "l ↦_| cty '|' " := (mapsto_layout l Tsh cty)
   (at level 20, format "l ↦_| cty '|' ") : bi_scope.
 
+(* putting types at the assert level to avoid excessive embed operators *)
 (* In Caesium, all values are lists of bytes in memory, and structured data is just an
    assertion on top of that. What do we want the values that appear in our types to be? *)
 Record type `{!typeG OK_ty Σ} {cs : compspecs}  := {
@@ -457,14 +459,14 @@ Record type `{!typeG OK_ty Σ} {cs : compspecs}  := {
   (** [ty_own β l ty], also [l ◁ₗ{β} ty], states that the location [l]
   has type [ty]. [β] determines whether the location is fully owned
   [Own] or shared [Shr] (shared is mainly used for global variables). *)
-  ty_own : own_state → address → iProp Σ;
+  ty_own : own_state → address → assert;
   (** [ty_own v ty], also [v ◁ᵥ ty], states that the value [v] has type [ty]. *)
-  ty_own_val cty : (reptype_lemmas.reptype cty) → iProp Σ;
+  ty_own_val cty : (reptype_lemmas.reptype cty) → assert;
   (** [ty_share] states that full ownership can always be turned into shared ownership. *)
-  ty_share l E : ↑shrN ⊆ E → ty_own Own l ={E}=∗ ty_own Shr l;
+  ty_share l E : ↑shrN ⊆ E → ty_own Own l ⊢ |={E}=> ty_own Shr l;
   (** [ty_shr_pers] states that shared ownership is persistent. *)
   ty_shr_pers l : Persistent (ty_own Shr l);
-  (* should also be Affine *)
+  (* should also be Affine? *)
   (** [ty_aligned] states that from [l ◁ₗ{β} ty] follows that [l] is
   aligned according to [ty_has_op_type]. *)
   ty_aligned cty mt l : ty_has_op_type cty mt → ty_own Own l -∗ <absorb> ⌜l `has_layout_loc` cty ⌝;
@@ -578,7 +580,7 @@ Global Existing Instance copy_own_affine.
    to obtain valid_pointer *)
 Class LocInBounds `{!typeG OK_ty Σ} {cs : compspecs} (ty : type) (β : own_state) (n: nat) := {
   loc_in_bounds_pos : n > 0;
-  loc_in_bounds_in_bounds l : ty.(ty_own) β l -∗ loc_in_bounds l n
+  loc_in_bounds_in_bounds l : ty.(ty_own) β l -∗ ⎡loc_in_bounds l n⎤
   (* if we make this ={E}=∗ instead, it interacts poorly with ∧ *)
 }.
 Arguments loc_in_bounds_in_bounds {_ _ _ _} _ _ _ {_} _.
@@ -588,7 +590,7 @@ Section loc_in_bounds.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
   Lemma loc_in_bounds_weak_valid_pointer : forall ty β n {LB: LocInBounds ty β n} l,
-    ty.(ty_own) β l -∗ weak_valid_pointer l.
+    ty.(ty_own) β l -∗ ⎡weak_valid_pointer l⎤.
   Proof.
     intros; iIntros "H".
     iPoseProof (loc_in_bounds_in_bounds with "H") as "H".
@@ -603,7 +605,7 @@ Section loc_in_bounds.
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof ot < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs ot (Ptrofs.unsigned l.2) →
     ty.(ty_has_op_type) ot mt →
-    ty.(ty_own) Own l -∗ loc_in_bounds l (Z.to_nat (expr.sizeof ot)).
+    ty.(ty_own) Own l -∗ ⎡loc_in_bounds l (Z.to_nat (expr.sizeof ot))⎤.
   Proof.
     intros; iIntros "Hl". iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
     rewrite /mapsto data_at_rec_loc_in_bounds //; auto.

@@ -45,26 +45,12 @@ Section value.
   Definition value_simplify_inst := [instance value_simplify with 0%N].
   Global Existing Instance value_simplify_inst.
 
-  Lemma value_simplify' ot v p (T : assert):
-    (<affine> ⌜v = valinject ot p⌝ -∗ <affine>⌜v `has_layout_val` ot⌝ -∗ ⟦⎡v ◁ᵥ|ot| value ot p⎤⟧ -∗ T)
-    ⊢ simplify_hyp ⎡v ◁ᵥ|ot| value ot p⎤ T.
-  Proof. iIntros "HT [% [% %]]". rewrite do_not_simplify_eq /=. by iApply "HT". Qed.
-  Definition value_simplify'_inst := [instance value_simplify' with 0%N].
-  Global Existing Instance value_simplify'_inst.
-
   Lemma value_simplify_goal ot v p T:
     (<affine> ⌜v = valinject ot p⌝ ∗ <affine> ⌜v `has_layout_val` ot⌝ ∗ T)
     ⊢ simplify_goal (v ◁ᵥ|ot| value ot p) T.
   Proof. iIntros "(% & % & $)". done. Qed.
   Definition value_simplify_goal_inst := [instance value_simplify_goal with 0%N].
   Global Existing Instance value_simplify_goal_inst.
-
-  Lemma value_simplify_goal' ot v p (T : assert):
-    (<affine> ⌜v = valinject ot p⌝ ∗ <affine> ⌜v `has_layout_val` ot⌝ ∗ T)
-    ⊢ simplify_goal ⎡v ◁ᵥ|ot| value ot p⎤ T.
-  Proof. iIntros "(% & % & $)". done. Qed.
-  Definition value_simplify_goal'_inst := [instance value_simplify_goal' with 0%N].
-  Global Existing Instance value_simplify_goal'_inst.
 
   (* might restore this if we find an analogue to memcast *)
 (*   Lemma value_subsume_goal A v v' ly ty T:
@@ -85,17 +71,6 @@ Section value.
   Qed.
   Definition value_subsume_goal_inst := [instance value_subsume_goal].
   Global Existing Instance value_subsume_goal_inst.
-
-  Lemma value_subsume_goal' A cty v v' ty (T : A → assert):
-    (<affine> ⌜v `has_layout_val` cty⌝ ∗ (⎡v ◁ᵥ|cty| ty⎤ -∗ ∃ x, <affine> ⌜v = valinject cty (v' x)⌝ ∗ T x))
-    ⊢ subsume ⎡v ◁ᵥ|cty| ty⎤ (λ x : A, ⎡v ◁ᵥ|cty| value cty (v' x)⎤) T.
-  Proof.
-    iIntros "[% HT] Hty". (* iDestruct (ty_size_eq with "Hty") as %Hly; [done|]. *)
-(*     iDestruct (ty_memcast_compat_id with "Hty") as %?; [done|]. *)
-    iDestruct ("HT" with "Hty") as (? ->) "?". iExists _. by iFrame.
-  Qed.
-  Definition value_subsume_goal'_inst := [instance value_subsume_goal'].
-  Global Existing Instance value_subsume_goal'_inst.
 
   (*   Lemma value_subsume_goal_loc A l v' ot ty T:
     (<affine> ⌜ty.(ty_has_op_type) ot MCId⌝ ∗ ∀ v, v ◁ᵥ ty -∗ ∃ x, <affine> ⌜v = (v' x)⌝ ∗ T x)
@@ -120,16 +95,6 @@ Section value.
   Qed.
   Definition value_subsume_own_ptrop_inst := [instance value_subsume_own_ptrop].
   Global Existing Instance value_subsume_own_ptrop_inst.
-
-  Lemma value_subsume_own_ptrop' A l β (v' : A → val) ty (T : A → assert):
-    (⎡l ◁ₗ{β} ty⎤ -∗ ∃ x, <affine> ⌜v' x = l⌝ ∗ T x)
-    ⊢ subsume ⎡l ◁ₗ{β} ty⎤ (λ x : A, ⎡l ◁ᵥ|tptr tvoid| value (tptr tvoid) (v' x)⎤) T.
-  Proof.
-    iIntros "HT Hty". iDestruct ("HT" with "Hty") as (? Heq) "?". iExists _. iFrame.
-    rewrite Heq. iPureIntro. split_and!; done.
-  Qed.
-  Definition value_subsume_own_ptrop'_inst := [instance value_subsume_own_ptrop'].
-  Global Existing Instance value_subsume_own_ptrop'_inst.
 
 (*   Lemma value_merge v l ot T:
     find_in_context (FindVal v) (λ ty:type, ⌜ty.(ty_has_op_type) (UntypedOp (ot_layout ot)) MCNone⌝ ∗ (l ◁ₗ ty -∗ T))
@@ -174,7 +139,7 @@ Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!Def
     typed_write_end a E ot v ty l2 Own ty2 T where
     `{!TCDone (ty.(ty_has_op_type) (val_type ot) MCId ∧
                ty2.(ty_has_op_type) (val_type ot) MCNone)} :-
-      ∀ v', inhale ⎡v ◁ᵥₐₗ|ot| ty⎤; inhale ⎡v' ◁ᵥ|val_type ot| ty2⎤; return T (value (val_type ot) v).
+      ∀ v', inhale v ◁ᵥₐₗ|ot| ty; inhale v' ◁ᵥ|val_type ot| ty2; return T (value (val_type ot) v).
   Proof.
     unfold TCDone, typed_write_end => -[??]. iIntros "HT Hl Hv".
     iDestruct (ty_aligned with "Hl") as %?; [done|].
@@ -339,26 +304,6 @@ Section place.
   (* This is applied with Hint Extern for better performance. *)
   Definition simplify_goal_ex_place_inst := [instance simplify_goal_ex_place with 99%N].
 
-  Lemma place_simplify' l β p (T : assert):
-    (<affine> ⌜l = p⌝ -∗ T)
-    ⊢ simplify_hyp ⎡l◁ₗ{β} place p⎤ T.
-  Proof. iIntros "HT ->". by iApply "HT". Qed.
-  Definition place_simplify'_inst := [instance place_simplify' with 0%N].
-  Global Existing Instance place_simplify'_inst.
-
-  Lemma place_simplify_goal' l β p (T : assert):
-    <affine> ⌜l = p⌝ ∗ T
-    ⊢ simplify_goal ⎡l◁ₗ{β} place p⎤ T.
-  Proof. by iIntros "[-> $]". Qed.
-  Definition place_simplify_goal'_inst := [instance place_simplify_goal' with 0%N].
-  Global Existing Instance place_simplify_goal'_inst.
-
-  Lemma simplify_goal_ex_place' l β ty (T : assert):
-    simplify_goal ⎡l ◁ₗ{β} ty⎤ T :- exhale (<affine> ⌜ty = place l⌝); return T.
-  Proof. iIntros "[-> $]". done. Qed.
-  (* This is applied with Hint Extern for better performance. *)
-  Definition simplify_goal_ex_place'_inst := [instance simplify_goal_ex_place' with 99%N].
-
   Lemma type_addr_of_singleton l β ty T:
     T β ty (place l)
     ⊢ typed_addr_of_end l β ty T.
@@ -366,10 +311,10 @@ Section place.
   Definition type_addr_of_singleton_inst := [instance type_addr_of_singleton].
   Global Existing Instance type_addr_of_singleton_inst.
 
-  Lemma typed_place_simpl ge P l ty1 β1 n {SH:SimplifyHyp ⎡l ◁ₗ{β1} ty1⎤ (Some n)} T:
+  Lemma typed_place_simpl ge P l ty1 β1 n {SH:SimplifyHyp (l ◁ₗ{β1} ty1) (Some n)} T:
     (SH (find_in_context (FindLoc l) (λ '(β2, ty2),
         typed_place ge P l β2 ty2 (λ l3 β3 ty3 typ R,
-           T l3 β3 ty3 (λ _, place l) (λ ty', ⎡l ◁ₗ{β2} typ ty'⎤ ∗ R ty' ))))).(i2p_P)
+           T l3 β3 ty3 (λ _, place l) (λ ty', (l ◁ₗ{β2} typ ty') ∗ R ty' ))))).(i2p_P)
     ⊢ typed_place ge P l β1 ty1 T.
   Proof.
     iIntros "SH" (Φ) "Hl HΦ".
@@ -382,9 +327,9 @@ Section place.
   Definition typed_place_simpl_inst := [instance typed_place_simpl].
   Global Existing Instance typed_place_simpl_inst | 1000.
 
-  Lemma typed_read_end_simpl E l β ty ly n {SH:SimplifyHyp ⎡l ◁ₗ{β} ty⎤ (Some n)} a T:
+  Lemma typed_read_end_simpl E l β ty ly n {SH:SimplifyHyp (l ◁ₗ{β} ty) (Some n)} a T:
     (SH (find_in_context (FindLoc l) (λ '(β2, ty2),
-        typed_read_end a E l β2 ty2 ly (λ v ty' ty3, ⎡l ◁ₗ{β2} ty'⎤ -∗ T v (place l) ty3)))).(i2p_P)
+        typed_read_end a E l β2 ty2 ly (λ v ty' ty3, (l ◁ₗ{β2} ty') -∗ T v (place l) ty3)))).(i2p_P)
     ⊢ typed_read_end a E l β ty ly T.
   Proof.
     iIntros "SH". iApply typed_read_end_mono_strong; [done|]. iIntros "Hl !>".
@@ -396,9 +341,9 @@ Section place.
   Definition typed_read_end_simpl_inst := [instance typed_read_end_simpl].
   Global Existing Instance typed_read_end_simpl_inst | 1000.
 
-  Lemma typed_write_end_simpl b E ot v ty1 l β ty2 n {SH:SimplifyHyp ⎡l ◁ₗ{β} ty2⎤ (Some n)} T:
+  Lemma typed_write_end_simpl b E ot v ty1 l β ty2 n {SH:SimplifyHyp (l ◁ₗ{β} ty2) (Some n)} T:
     (SH (find_in_context (FindLoc l) (λ '(β3, ty3),
-        typed_write_end b E ot v ty1 l β3 ty3 (λ ty', ⎡l ◁ₗ{β3} ty'⎤ -∗ T (place l))))).(i2p_P)
+        typed_write_end b E ot v ty1 l β3 ty3 (λ ty', (l ◁ₗ{β3} ty') -∗ T (place l))))).(i2p_P)
     ⊢ typed_write_end b E ot v ty1 l β ty2 T.
   Proof.
     iIntros "SH". iApply typed_write_end_mono_strong; [done|]. iIntros "Hv Hl !>".
@@ -416,5 +361,3 @@ Notation "place< l >" := (place l) (only printing, format "'place<' l '>'") : pr
 
 Global Hint Extern 99 (SimplifyGoal (_ ◁ₗ{_} _.1ₗ) _) =>
   (class_apply simplify_goal_ex_place_inst) : typeclass_instances.
-Global Hint Extern 99 (SimplifyGoal (_ ◁ₗ{_} _.1ₗ) _) =>
-  (class_apply simplify_goal_ex_place'_inst) : typeclass_instances.

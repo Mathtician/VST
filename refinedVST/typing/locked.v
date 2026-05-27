@@ -28,8 +28,8 @@ Proof. solve_inG. Qed.
 Section type.
   Context `{!lockG Σ} `{!typeG OK_ty Σ} {cs : compspecs} (ge : Genv.t Clight.fundef Ctypes.type).
 
-  Definition lock_token (γ : lock_id) (l : list string) : mpred :=
-    ∃ s : gset string, ⌜l ≡ₚ elements s⌝ ∧ own (inG0 := lock_inG) γ (●{dfrac.DfracOwn 1} (GSet s) : gset_disjUR_authR).
+  Definition lock_token (γ : lock_id) (l : list string) : assert :=
+    ∃ s : gset string, ⌜l ≡ₚ elements s⌝ ∧ ⎡own (inG0 := lock_inG) γ (●{dfrac.DfracOwn 1} (GSet s) : gset_disjUR_authR)⎤.
 
   Global Instance lock_token_timeless γ l : Timeless (lock_token γ l).
   Proof. apply _. Qed.
@@ -56,7 +56,7 @@ Section type.
     ty_own β l := (match β return _ with
                   | Own => l ◁ₗ ty x
                   | Shr => ∃ γ', inv lockN ((∃ x', l ◁ₗ ty x' ∗
-                                                    own γ' (Excl ())) ∨ own γ (◯ (GSet {[ n ]}): gset_disjUR_authR))
+                                                    ⎡own γ' (Excl ())⎤) ∨ ⎡own γ (◯ (GSet {[ n ]}): gset_disjUR_authR)⎤)
                   end)%I;
     ty_own_val cty v := (v ◁ᵥ|cty| (ty x))%I;
   |}.
@@ -99,7 +99,7 @@ Section type.
 
   Definition tylocked_ex_token {A} (γ : lock_id) (n : string) (l : address) (β : own_state) (ty : A → type):=
     (∀ E x, <affine> ⌜↑lockN ⊆ E⌝ -∗ l ◁ₗ ty x ={E}=∗ l ◁ₗ{β} tylocked_ex γ n x ty ∗
-                                                      own γ (◯ (GSet {[ n ]}) : gset_disjUR_authR))%I.
+                                                      ⎡own γ (◯ (GSet {[ n ]}) : gset_disjUR_authR)⎤)%I.
 
   Lemma locked_open A n s l γ (x : A) ty β E:
     n ∉ s → ↑lockN ⊆ E →

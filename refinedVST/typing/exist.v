@@ -64,7 +64,7 @@ Notation "'∃ₜ' x .. y , p" := (ty_of_rty (tyexists (fun x => .. (ty_of_rty (
 Section tyexist.
   Context `{!typeG Ok_ty Σ} {cs : compspecs} {A : Type}.
 
-  Lemma simplify_hyp_place_tyexists x l β (ty : A → _) T:
+  Lemma simplify_hyp_place_tyexists x l β (ty : A → _) (T : assert) :
     (l ◁ₗ{β} ty x -∗ T) ⊢ simplify_hyp (l◁ₗ{β} x @ tyexists ty) T.
   Proof. iIntros "HT Hl". rewrite tyexists_eq. by iApply "HT". Qed.
   
@@ -72,21 +72,21 @@ Section tyexist.
     [instance simplify_hyp_place_tyexists with 0%N].
   Global Existing Instance simplify_hyp_place_tyexists_inst.
 
-  Lemma simplify_goal_place_tyexists x l β (ty : A → _) T:
+  Lemma simplify_goal_place_tyexists x l β (ty : A → _) (T : assert) :
     l ◁ₗ{β} ty x ∗ T ⊢ simplify_goal (l◁ₗ{β} x @ tyexists ty) T.
   Proof. iIntros "[? $]". by rewrite tyexists_eq. Qed.
 
   Definition simplify_goal_place_tyexists_inst := [instance simplify_goal_place_tyexists with 0%N].
   Global Existing Instance simplify_goal_place_tyexists_inst.
 
-  Lemma simplify_hyp_val_tyexists x cty v ty T :
+  Lemma simplify_hyp_val_tyexists x cty v ty (T : assert) :
     (v ◁ᵥ|cty| ty x -∗ T) ⊢ simplify_hyp (v ◁ᵥ|cty| x @ tyexists (A:=A) ty) T.
   Proof. iIntros "HT Hl". rewrite tyexists_eq. by iApply "HT". Qed.
 
   Definition simplify_hyp_val_tyexists_inst := [instance simplify_hyp_val_tyexists with 0%N].
   Global Existing Instance simplify_hyp_val_tyexists_inst.
 
-  Lemma simplify_goal_val_tyexists x cty v ty T:
+  Lemma simplify_goal_val_tyexists x cty v ty (T : assert) :
     v ◁ᵥ|cty| ty x ∗ T ⊢ simplify_goal (v ◁ᵥ|cty| x @ tyexists (A:=A) ty) T.
   Proof. iIntros "[? $]". by rewrite tyexists_eq. Qed.
 

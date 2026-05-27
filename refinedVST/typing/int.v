@@ -194,8 +194,8 @@ Section int.
   Lemma simplify_int it v n (T : assert):
     (<affine> ⌜v = valinject it (i2v n it)⌝ -∗
      <affine> ⌜n ∈ it⌝ -∗
-     ⟦⎡v ◁ᵥ|it| n @ int it⎤⟧ -∗ T)
-      ⊢ simplify_hyp ⎡v ◁ᵥ|it| n @ int it⎤ T.
+     ⟦v ◁ᵥ|it| n @ int it⟧ -∗ T)
+      ⊢ simplify_hyp (v ◁ᵥ|it| n @ int it) T.
   Proof.
     rewrite do_not_simplify_eq.
     rewrite /simplify_hyp /ty_own_val_at /ty_own_val /=.
@@ -224,18 +224,6 @@ Section int.
   Definition simplify_goal_int_n_inst := [instance simplify_goal_int_n with 0%N].
   Global Existing Instance simplify_goal_int_n_inst.
 
-  Lemma simplify_goal_int_n' it v n (T : assert):
-    (<affine> ⌜type_is_volatile it = false⌝ ∗ <affine> ⌜v = valinject it (i2v n it)⌝ ∗ <affine> ⌜n ∈ it⌝ ∗ T)
-      ⊢ simplify_goal ⎡v ◁ᵥ|it| n @ int it⎤ T.
-  Proof.  iIntros "(%H & -> & %Hn & $)"; subst.
-          iPureIntro; split3; auto.
-          - destruct it; try done; rewrite /has_layout_val value_fits_eq //= H //.
-            intros ?; by apply (in_range_i2v n (Tint _ _ _)).
-          - rewrite -(i2v_to_Z _ it) //; by destruct it.
-  Qed.
-  Definition simplify_goal_int_n'_inst := [instance simplify_goal_int_n' with 0%N].
-  Global Existing Instance simplify_goal_int_n'_inst.
-
   Lemma simplify_goal_int_unrefined it v T:
     (<affine> ⌜type_is_volatile it = false⌝ ∗ ∃ n, <affine> ⌜val_to_Z (repinject it v) it = Some n⌝ ∗ <affine> ⌜n ∈ it⌝ ∗ T)
       ⊢ simplify_goal (v ◁ᵥ|it| int it) T.
@@ -249,20 +237,6 @@ Section int.
   Qed.
   Definition simplify_goal_int_unrefined_inst := [instance simplify_goal_int_unrefined with 0%N].
   Global Existing Instance simplify_goal_int_unrefined_inst.
-
-  Lemma simplify_goal_int_unrefined' it v (T : assert):
-    (<affine> ⌜type_is_volatile it = false⌝ ∗ ∃ n, <affine> ⌜val_to_Z (repinject it v) it = Some n⌝ ∗ <affine> ⌜n ∈ it⌝ ∗ T)
-      ⊢ simplify_goal ⎡v ◁ᵥ|it| int it⎤ T.
-  Proof.  iIntros "(%H & %n & %Hv & %Hn & $)".
-          iExists n.
-          iPureIntro; split3; auto.
-          apply tc_val_has_layout_val; first by destruct it.
-          rewrite H; intros ?.
-          apply val_to_Z_inv in Hv as ->.
-          by apply in_range_i2v.
-  Qed.
-  Definition simplify_goal_int_unrefined'_inst := [instance simplify_goal_int_unrefined' with 0%N].
-  Global Existing Instance simplify_goal_int_unrefined'_inst.
 
   Lemma val_to_Z_not_Vundef it v n:
     val_to_Z v it = Some n -> v ≠ Vundef.
@@ -451,7 +425,7 @@ Section programs.
     | _ => None
     end = Some b →
     (<affine> ⌜n1 ∈ val_type it⌝ -∗ <affine> ⌜n2 ∈ val_type it⌝ -∗ T (i2v (bool_to_Z b) tint) (b @ boolean tint))
-    ⊢ typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|it| n1 @ int (val_type it)⎤ v2 ⎡v2 ◁ᵥₐₗ|it| n2 @ int (val_type it)⎤ op it it tint T.
+    ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|it| n1 @ int (val_type it)) v2 (v2 ◁ᵥₐₗ|it| n2 @ int (val_type it)) op it it tint T.
   Proof.
     iIntros "%Hop HT (%H1 & [%H %Hv1]) (%H2 & [%H0 %Hv2]) %Φ HΦ".
     apply val_to_Z_by_value in Hv1 as Hit2.
@@ -622,7 +596,7 @@ Section programs.
     TCEq v1_rep (valinject it v1) →
     TCEq v2_rep (valinject it v2) →
     (<affine> ⌜n1 ∈ it⌝ -∗ <affine> ⌜n2 ∈ it⌝ -∗ <affine> ⌜in_range n it ∧ int_arithop_sidecond it n1 n2 n op⌝ ∗ T (i2v n it) (n @ int it))
-    ⊢ typed_bin_op ge v1 ⎡v1_rep ◁ᵥ|it| n1 @ int it⎤ v2 ⎡v2_rep ◁ᵥ|it| n2 @ int it⎤ op it it it T.
+    ⊢ typed_bin_op ge v1 (v1_rep ◁ᵥ|it| n1 @ int it) v2 (v2_rep ◁ᵥ|it| n2 @ int it) op it it it T.
   Proof.
     iIntros (-> ->) "HT (H1 & [%Hv_layout1 %Hv1]) (H & [%Hv_layout2 %Hv2]) %Φ HΦ".
     apply val_to_Z_by_value in Hv1 as Hit2.
@@ -951,7 +925,7 @@ Section programs.
 
   Lemma type_neg_int n it v T:
     (<affine> ⌜n ∈ val_type it⌝ -∗ <affine> ⌜is_signed (val_type it)⌝ ∗ <affine> ⌜n ≠ min_int (val_type it)⌝ ∗ T (i2v (-n) (val_type it)) ((-n) @ int (val_type it)))
-    ⊢ typed_un_op v ⎡v ◁ᵥₐₗ|it| n @ int (val_type it)⎤%I Oneg it it T.
+    ⊢ typed_un_op v (v ◁ᵥₐₗ|it| n @ int (val_type it)) Oneg it it T.
   Proof.
     iIntros "HT (%_ & [%H %Hv]) %Φ HΦ".
     apply val_to_Z_by_value in Hv as Hit2.
@@ -1073,7 +1047,7 @@ Section programs.
   Qed.
 
   Lemma type_cast_int_same ge f e T:
-    typed_val_expr ge f e (λ v ty, ⎡v ◁ᵥₐₗ|typeof e| ty⎤ -∗ <affine> ⌜type_is_volatile (typeof e) = false⌝ ∗
+    typed_val_expr ge f e (λ v ty, v ◁ᵥₐₗ|typeof e| ty -∗ <affine> ⌜type_is_volatile (typeof e) = false⌝ ∗
       ∃ n, <affine> ⌜val_to_Z v (typeof e) = Some n⌝ ∗
       <affine> ⌜n ∈ typeof e⌝ ∗ T v (n @ int (typeof e)))
     ⊢ typed_val_expr ge f (Ecast e (typeof e)) T.
@@ -1098,7 +1072,7 @@ Section programs.
   Qed.
 
   Lemma type_cast_int ge f e it2 T:
-    typed_val_expr ge f e (λ v ty, ⎡v ◁ᵥₐₗ|typeof e| ty⎤ -∗ <affine> ⌜type_is_volatile (typeof e) = false⌝ ∗
+    typed_val_expr ge f e (λ v ty, v ◁ᵥₐₗ|typeof e| ty -∗ <affine> ⌜type_is_volatile (typeof e) = false⌝ ∗
       ∃ n, <affine> ⌜val_to_Z v (typeof e) = Some n⌝ ∗ <affine> ⌜n ∈ typeof e⌝ ∗
       <affine> ⌜n ∈ it2⌝ ∗ <affine> ⌜is_bool_type it2 = false ∧ type_is_volatile it2 = false⌝ ∗
        ∀ v, T v (n @ int it2))
@@ -1220,8 +1194,8 @@ Section programs.
   Global Existing Instance subsume_int_boolean_val_inst.
 
   Lemma type_binop_boolean_int ge it1 it2 it3 it4 it5 v1 b1 v2 n2 op T:
-    typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|it1| (bool_to_Z b1) @ int (val_type it1)⎤ v2 ⎡v2 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)⎤ op it3 it4 it5 T
-    ⊢ typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|it1| b1 @ boolean (val_type it1)⎤ v2 ⎡v2 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)⎤ op it3 it4 it5 T.
+    typed_bin_op ge v1 (v1 ◁ᵥₐₗ|it1| (bool_to_Z b1) @ int (val_type it1)) v2 (v2 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)) op it3 it4 it5 T
+    ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|it1| b1 @ boolean (val_type it1)) v2 (v2 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)) op it3 it4 it5 T.
   Proof.
     iIntros "HT H1 H2". iApply ("HT" with "[H1] H2"). unfold boolean; simpl_type.
     rewrite /ty_own_val_at /ty_own_val /=.
@@ -1232,8 +1206,8 @@ Section programs.
   Global Existing Instance type_binop_boolean_int_inst.
 
   Lemma type_binop_int_boolean ge it1 it2 it3 it4 it5 v1 b1 v2 n2 op T:
-    typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)⎤ v2 ⎡v2 ◁ᵥₐₗ|it1| (bool_to_Z b1) @ int (val_type it1)⎤ op it3 it4 it5 T
-    ⊢ typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)⎤ v2 ⎡v2 ◁ᵥₐₗ|it1| b1 @ boolean (val_type it1)⎤ op it3 it4 it5 T.
+    typed_bin_op ge v1 (v1 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)) v2 (v2 ◁ᵥₐₗ|it1| (bool_to_Z b1) @ int (val_type it1)) op it3 it4 it5 T
+    ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|it2| n2 @ int (val_type it2)) v2 (v2 ◁ᵥₐₗ|it1| b1 @ boolean (val_type it1)) op it3 it4 it5 T.
   Proof.
     iIntros "HT H1 H2". iApply ("HT" with "H1 [H2]"). unfold boolean; simpl_type.
     rewrite /ty_own_val_at /ty_own_val /=.

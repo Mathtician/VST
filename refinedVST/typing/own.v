@@ -125,16 +125,6 @@ Section own.
   Definition simplify_frac_ptr_inst := [instance simplify_frac_ptr with 0%N].
   Global Existing Instance simplify_frac_ptr_inst.
 
-  Lemma simplify_frac_ptr' (v : val) (p : address) cty ty β (T : assert):
-    (<affine> ⌜v = p⌝ -∗ ⎡p ◁ₗ{β} ty⎤ -∗ T)
-      ⊢ simplify_hyp ⎡v ◁ᵥₐₗ|tptr cty| p @ frac_ptr β ty⎤ T.
-  Proof.  iIntros "HT Hl".
-          iDestruct "Hl" as (?) "Hl".
-          iApply "HT"; try done.
-  Qed.
-  Definition simplify_frac_ptr'_inst := [instance simplify_frac_ptr' with 0%N].
-  Global Existing Instance simplify_frac_ptr'_inst.
-
   Lemma simplify_goal_frac_ptr_val cty ty (v : val) β (p : address) T:
     <affine> ⌜v = p⌝ ∗ p ◁ₗ{β} ty ∗ T
     ⊢ simplify_goal (v ◁ᵥₐₗ|tptr cty| p @ frac_ptr β ty) T.
@@ -200,20 +190,6 @@ Section own.
   Definition own_value_simplify_inst := [instance own_value_simplify with 0%N].
   Global Existing Instance own_value_simplify_inst.
 
-  Lemma own_value_simplify' l ot p (T : assert):
-    (∃ ty, ⎡p ◁ₗ ty⎤ ∗ (⎡l ◁ₗ p @ frac_ptr Own ty⎤ -∗ T))
-    ⊢ simplify_hyp ⎡l ◁ₗ value (tptr ot) p⎤ T.
-  Proof.
-    iIntros "(% & Hp & HT) Hl".
-    rewrite /value; simpl_type.
-    iDestruct "Hl" as "(%Hl & % & Hl)".
-    iApply "HT".
-    rewrite /heap_mapsto_own_state (mapsto_tptr _ _ _ tvoid); iFrame.
-    by apply has_layout_loc_tptr in Hl.
-  Qed.
-  Definition own_value_simplify'_inst := [instance own_value_simplify' with 0%N].
-  Global Existing Instance own_value_simplify'_inst.
-
 (*   Lemma type_offset_of_sub v1 l s m P ly t T:
     ⌜ly_size ly = 1%nat⌝ ∗ (
       (P -∗ loc_in_bounds l 0 ∗ True) ∧ (P -∗ T (val_of_loc l) (l @ frac_ptr Own (place l))))
@@ -240,7 +216,7 @@ Section own.
       if is_tptr cty then ∃ l, <affine> ⌜v = adr2val l⌝ ∗ find_in_context (FindLoc l) (λ '(β, ty),
           T v (ty_of_rty (frac_ptr β ty))) (* doesn't allow for null *)
       else let int_ty := match val_to_Z v cty with Some n => n | _ => 0 end @ int.int cty in
-          ⎡v ◁ᵥₐₗ|cty| int_ty⎤ ∗ T v int_ty)
+          v ◁ᵥₐₗ|cty| int_ty ∗ T v int_ty)
     ⊢ typed_val_expr ge f (Etempvar _x cty) T.
   Proof.
     rewrite /find_in_context. simpl.
@@ -260,7 +236,7 @@ Section own.
 
   Lemma type_cast_ptr_ptr f e ot T:
     is_tptr (typeof e) = true →
-    typed_val_expr ge f e (λ v ty0, ⎡v ◁ᵥₐₗ|typeof e| ty0⎤ -∗
+    typed_val_expr ge f e (λ v ty0, v ◁ᵥₐₗ|typeof e| ty0 -∗
       <affine> ⌜is_pointer_or_null v⌝ ∗ T v (value (tptr ot) v))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
@@ -281,8 +257,8 @@ Section own.
 
   (*Lemma type_cast_ptr_ptr f e ot β ty T:
     is_tptr (typeof e) = true →
-    typed_val_expr ge f e (λ v ty0, ⎡v ◁ᵥₐₗ|typeof e| ty0⎤ -∗ ∃ l, <affine> ⌜v = adr2val l⌝ ∗
-      ⎡l ◁ₗ{β} ty⎤ ∗ T v (l @ frac_ptr β ty))
+    typed_val_expr ge f e (λ v ty0, v ◁ᵥₐₗ|typeof e| ty0 -∗ ∃ l, <affine> ⌜v = adr2val l⌝ ∗
+      l ◁ₗ{β} ty ∗ T v (l @ frac_ptr β ty))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
     intros; iIntros "He %Φ HΦ".
@@ -297,8 +273,8 @@ Section own.
   Qed.*)
 
   Lemma type_if_ptr_own (l : address) β ty t T1 T2:
-    (l ◁ₗ{β} ty -∗ (*(loc_in_bounds l 0 ∗ True) ∧*) valid_val l ∧ T1)
-    ⊢ typed_if (tptr t) l (l ◁ₗ{β} ty) (valid_val l) T1 T2.
+    (l ◁ₗ{β} ty -∗ (*(loc_in_bounds l 0 ∗ True) ∧*) ⎡valid_val l⎤ ∧ T1)
+    ⊢ typed_if (tptr t) l (l ◁ₗ{β} ty) ⎡valid_val l⎤ T1 T2.
   Proof.
     iIntros "HT1 Hl".
     iDestruct ("HT1" with "Hl") as "HT".
@@ -309,8 +285,8 @@ Section own.
   Global Existing Instance type_if_ptr_own_inst.
 
   Lemma type_assert_ptr_own l β ty t R:
-    (⎡l ◁ₗ{β} ty⎤ -∗ ⎡weak_valid_pointer l⎤ ∧ T_normal R)
-    ⊢ typed_assert (tptr t) l ⎡l ◁ₗ{β} ty⎤ R.
+    (l ◁ₗ{β} ty -∗ ⎡weak_valid_pointer l⎤ ∧ T_normal R)
+    ⊢ typed_assert (tptr t) l (l ◁ₗ{β} ty) R.
   Proof.
     iIntros "HT1 Hl".
     iDestruct ("HT1" with "Hl") as "$".
@@ -350,10 +326,10 @@ Section own.
            | Oge => Some (bool_decide (Ptrofs.unsigned l1.2 >= Ptrofs.unsigned l2.2))
            | _ => None
            end = Some b) T:
-    (⎡l1 ◁ₗ{β1} ty1⎤ -∗ ⎡l2 ◁ₗ{β2} ty2⎤ -∗ <affine> ⌜l1.1 = l2.1⌝ ∗ (
+    (l1 ◁ₗ{β1} ty1 -∗ l2 ◁ₗ{β2} ty2 -∗ <affine> ⌜l1.1 = l2.1⌝ ∗ (
       ⎡expr.weak_valid_pointer l1⎤ ∧ ⎡expr.weak_valid_pointer l2⎤ ∧
       T (i2v (bool_to_Z b) tint) (b @ boolean tint)))
-      ⊢ typed_bin_op ge l1 ⎡l1 ◁ₗ{β1} ty1⎤ l2 ⎡l2 ◁ₗ{β2} ty2⎤ op (tptr t1) (tptr t2) (tint) T.
+      ⊢ typed_bin_op ge l1 (l1 ◁ₗ{β1} ty1) l2 (l2 ◁ₗ{β2} ty2) op (tptr t1) (tptr t2) (tint) T.
   Proof.
     iIntros "HT Hl1 Hl2". iIntros (Φ) "HΦ".
     iDestruct ("HT" with "Hl1 Hl2") as (Heq) "HT".
@@ -436,7 +412,7 @@ Section own.
   Qed.
 *)
   Lemma find_in_context_type_loc_own l T:
-    (∃ l1 β1 β ty, ⎡l1 ◁ₗ{β1} (l @ frac_ptr β ty)⎤ ∗ (⎡l1 ◁ₗ{β1} (l @ frac_ptr β (place l))⎤ -∗
+    (∃ l1 β1 β ty, (l1 ◁ₗ{β1} (l @ frac_ptr β ty)) ∗ ((l1 ◁ₗ{β1} (l @ frac_ptr β (place l))) -∗
       T (own_state_min β1 β, ty)))
     ⊢ find_in_context (FindLoc l) T.
   Proof.
@@ -450,7 +426,7 @@ Section own.
 
   (* Should check it again *)
   Lemma find_in_context_type_val_own cty (l : address) T:
-    (∃ ty : type, ⎡(adr2val l) ◁ᵥₐₗ| (tptr cty) | (l @ frac_ptr Own ty) ⎤ ∗ T (l @ frac_ptr Own ty))
+    (∃ ty : type, (adr2val l) ◁ᵥₐₗ| (tptr cty) | (l @ frac_ptr Own ty) ∗ T (l @ frac_ptr Own ty))
     ⊢ find_in_context (FindVal (tptr cty) l) T.
   Proof. iDestruct 1 as (ty) "[Hl HT]". iExists _ => /=. iFrame. Qed.
   Definition find_in_context_type_val_own_inst :=
@@ -473,7 +449,7 @@ Section own.
   rules for place', but for place instead. *)
   Definition place' (l : address) : type := place l.
   Lemma find_in_context_type_val_P_own_singleton (l : address) (T:assert->assert):
-    (emp ∗ T (⎡l ◁ₗ place' l⎤))
+    (emp ∗ T (l ◁ₗ place' l))
     ⊢ find_in_context (FindValP l) T.
   Proof. rewrite /place'. iIntros "[_ HT]". iExists _. iFrame "HT" => //=. Qed.
   Definition find_in_context_type_val_P_own_singleton_inst :=
@@ -712,7 +688,7 @@ Section null.
   Lemma type_binop_null_null cty v1 v2 t1 t2 op T:
     (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗ ∀ v,
           T v ((if op is Cop.Oeq then true else false) @ boolean tint))
-      ⊢ typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|tptr cty| null⎤ v2 ⎡v2 ◁ᵥₐₗ|tptr cty| null⎤ op (tptr t1) (tptr t2) (tint) T.
+      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|tptr cty| null) v2 (v2 ◁ᵥₐₗ|tptr cty| null) op (tptr t1) (tptr t2) (tint) T.
   Proof.
     iIntros "(% & HT)" (?) "%"; simpl in *; subst.
     iIntros (Φ) "HΦ".
@@ -731,9 +707,9 @@ Section null.
   Global Existing Instance type_binop_null_null_inst.
 
   Lemma type_binop_ptr_null cty v op (l : address) t1 t2 ty β n `{!LocInBounds ty β n} T:
-    (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗ ∀ v, ⎡l ◁ₗ{β} ty⎤ -∗
+    (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗ ∀ v, l ◁ₗ{β} ty -∗
           T v ((if op is Oeq then false else true) @ boolean tint))
-      ⊢ typed_bin_op ge l ⎡l ◁ₗ{β} ty⎤ v ⎡v ◁ᵥₐₗ|tptr cty| null⎤ op (tptr t1) (tptr t2) tint T.
+      ⊢ typed_bin_op ge l (l ◁ₗ{β} ty) v (v ◁ᵥₐₗ|tptr cty| null) op (tptr t1) (tptr t2) tint T.
   Proof.
     iIntros "(% & HT) Hl" (?) "% HΦ"; simpl in *; subst.
     iApply (wp_binop_sc _ _ _ _ _ _ _ (Val.of_bool (if op is Oeq then false else true))).
@@ -745,19 +721,19 @@ Section null.
       iApply "HΦ" => //.
       destruct op; try done.
       { rewrite /Val.of_bool /Vfalse /= /ty_own_val_at /ty_own_val /=.
-        iSplit; auto. iExists _; done.
+        iSplit; auto.
       }
       { rewrite /Val.of_bool /Vtrue /= /ty_own_val_at /ty_own_val /=.
-        iSplit; auto. iExists _; done.
+        iSplit; auto.
       }
   Qed.
   Definition type_binop_ptr_null_inst := [instance type_binop_ptr_null].
   Global Existing Instance type_binop_ptr_null_inst.
 
   Lemma type_binop_null_ptr cty v op (l : address) t1 t2 ty β n `{!LocInBounds ty β n}  T:
-    (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗ ∀ v, ⎡l ◁ₗ{β} ty⎤ -∗
+    (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗ ∀ v, l ◁ₗ{β} ty -∗
      T v ((if op is Oeq then false else true) @ boolean tint))
-      ⊢ typed_bin_op ge v ⎡v ◁ᵥₐₗ|tptr cty| null⎤ l ⎡(l ◁ₗ{β} ty)⎤ op (tptr t1) (tptr t2) tint T.
+      ⊢ typed_bin_op ge v (v ◁ᵥₐₗ|tptr cty| null) l (l ◁ₗ{β} ty) op (tptr t1) (tptr t2) tint T.
   Proof.
     iIntros "(% & HT)" (?) "Hl % HΦ"; simpl in *; subst.
     iApply (wp_binop_sc _ _ _ _ _ _ _ (Val.of_bool (if op is Oeq then false else true))).
@@ -769,10 +745,10 @@ Section null.
       iApply "HΦ" => //.
       destruct op; try done.
       { rewrite /Val.of_bool /Vfalse /= /ty_own_val_at /ty_own_val /=.
-        iSplit; auto. iExists _; done.
+        iSplit; auto.
       }
       { rewrite /Val.of_bool /Vtrue /= /ty_own_val_at /ty_own_val /=.
-        iSplit; auto. iExists _; done.
+        iSplit; auto.
       }
   Qed.
   Definition type_binop_null_ptr_inst := [instance type_binop_null_ptr].
@@ -780,7 +756,7 @@ Section null.
 
   (* hardcoding target type for now *)
   Lemma type_cast_null_int f s e T: is_tptr (typeof e) = true →
-    typed_val_expr ge f e (λ v ty, ⎡v ◁ᵥₐₗ|typeof e| ty⎤ -∗ ⎡v ◁ᵥₐₗ|typeof e| null⎤ ∗
+    typed_val_expr ge f e (λ v ty, v ◁ᵥₐₗ|typeof e| ty -∗ v ◁ᵥₐₗ|typeof e| null ∗
       T (i2v 0 (Tlong s noattr)) (0 @ int.int (Tlong s noattr)))
     ⊢ typed_val_expr ge f (Ecast e (Tlong s noattr)) T.
   Proof.
@@ -804,7 +780,7 @@ Section null.
   Qed.
 
   Lemma type_cast_zero_ptr f e it ot T:
-    typed_val_expr ge f e (λ v ty, ⎡v ◁ᵥₐₗ|typeof e| ty⎤ -∗ ⎡v ◁ᵥₐₗ|typeof e| 0 @ int.int it⎤ ∗
+    typed_val_expr ge f e (λ v ty, v ◁ᵥₐₗ|typeof e| ty -∗ v ◁ᵥₐₗ|typeof e| 0 @ int.int it ∗
       T nullval null)
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
@@ -827,7 +803,7 @@ Section null.
   Qed.
 
   Lemma type_cast_null_ptr f e ot T: is_tptr (typeof e) = true →
-    typed_val_expr ge f e (λ v ty, ⎡v ◁ᵥₐₗ|typeof e| ty⎤ -∗ ⎡v ◁ᵥₐₗ|typeof e| null⎤ ∗
+    typed_val_expr ge f e (λ v ty, v ◁ᵥₐₗ|typeof e| ty -∗ v ◁ᵥₐₗ|typeof e| null ∗
       T v null)
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
@@ -847,8 +823,8 @@ Section null.
   Qed.
 
   Lemma type_if_null cty v t T1 T2:
-    valid_val v ∧ T2
-    ⊢ typed_if (tptr t) v (v ◁ᵥₐₗ|tptr cty| null) (valid_val v) T1 T2.
+    ⎡valid_val v⎤ ∧ T2
+    ⊢ typed_if (tptr t) v (v ◁ᵥₐₗ|tptr cty| null) ⎡valid_val v⎤ T1 T2.
   Proof.
     iIntros "Hv HT2".
     iSplit.
@@ -927,7 +903,7 @@ Section null.
         <affine> ⌜ty0 = null⌝ ∗
         T nullval null 
       else
-        (⎡v ◁ᵥₐₗ|typeof e| ty0⎤ -∗
+        (v ◁ᵥₐₗ|typeof e| ty0 -∗
          <affine> ⌜is_pointer_or_null v'⌝ ∗ T v' (value (tptr ot) v')))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
@@ -961,7 +937,7 @@ Section null.
       rewrite andb_false_r //.
   Qed.
   Definition type_cast_to_ptr_inst := [instance type_cast_to_ptr].
-  (* Global Existing Instance type_cast_int_ptr_cast_case_pointer_inst | 50. *)
+  (*Global Existing Instance type_cast_int_ptr_cast_case_pointer_inst | 50.*)
     
 End null.
 
@@ -975,7 +951,7 @@ Section optionable.
 
   Global Program Instance frac_ptr_optional p cty ty β t1 t2:
     Optionable cty (p @ frac_ptr β ty) null (tptr t1) (tptr t2) := {|
-    opt_pre v1 v2 := (p ◁ₗ{β} ty -∗ expr.valid_pointer p)%I
+    opt_pre v1 v2 := (p ◁ₗ{β} ty -∗ ⎡expr.valid_pointer p⎤)%I
   |}.
   Next Obligation.
     intros.
@@ -1031,7 +1007,7 @@ Section optionable.
 
   (* TODO: generalize this with a IsLoc typeclass or similar *)
   Lemma type_cast_optional_own_ptr ge f e ot b β T: is_tptr (typeof e) = true →
-      typed_val_expr ge f e (λ v ty, ⎡v ◁ᵥₐₗ|typeof e| ty⎤ -∗ ⎡v ◁ᵥₐₗ|typeof e| b @ optional (&frac{β} ty) null⎤ ∗
+      typed_val_expr ge f e (λ v ty, v ◁ᵥₐₗ|typeof e| ty -∗ v ◁ᵥₐₗ|typeof e| b @ optional (&frac{β} ty) null ∗
       T v (b @ optional (&frac{β} ty) null))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
@@ -1058,7 +1034,7 @@ Section optionable.
   Qed.
 
   Lemma type_cast_optionalO_own_ptr ge f A (b : option A) e ot β ty T: is_tptr (typeof e) = true →
-      typed_val_expr ge f e (λ v ty0, ⎡v ◁ᵥₐₗ|typeof e| ty0⎤ -∗ ⎡v ◁ᵥₐₗ|typeof e| b @ optionalO (λ x, &frac{β} (ty x)) null⎤ ∗
+      typed_val_expr ge f e (λ v ty0, v ◁ᵥₐₗ|typeof e| ty0 -∗ v ◁ᵥₐₗ|typeof e| b @ optionalO (λ x, &frac{β} (ty x)) null ∗
       T v (b @ optionalO (λ x, &frac{β} (ty x)) null))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.

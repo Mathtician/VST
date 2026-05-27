@@ -212,7 +212,7 @@ Section uninit.
     - iDestruct 1 as (v ??) "Hl". iExists v; by iFrame.
   Qed.
 
-  Lemma uninit_memory_block ly l: l ◁ₗ uninit ly ⊣⊢ <affine> ⌜l `has_layout_loc` ly⌝ ∗ memory_block Tsh (sizeof ly) l.
+  Lemma uninit_memory_block ly l: l ◁ₗ uninit ly ⊣⊢ <affine> ⌜l `has_layout_loc` ly⌝ ∗ ⎡memory_block Tsh (sizeof ly) l⎤.
   Proof.
     iSplit.
     - iIntros "(% & % & % & H)".
@@ -244,18 +244,6 @@ Section uninit.
   as this case is covered by the rules for bytes and the CanSolve can
   be quite expensive. *)
   Definition uninit_mono_inst := [instance uninit_mono].
-
-  Lemma uninit_mono' A l ty ly `{!TCDone (ty.(ty_has_op_type) ly MCNone)} (T : A → assert):
-    (∀ v, ⎡v ◁ᵥ|ly| ty⎤ -∗ ∃ x, T x)
-    ⊢ subsume ⎡l ◁ₗ ty⎤ (λ x : A, ⎡l ◁ₗ uninit ly⎤) T.
-  Proof.
-    unfold TCDone in *; subst. iIntros "HT Hl".
-    iDestruct (ty_aligned with "Hl") as %?; [done|].
-    iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
-    iDestruct (ty_size_eq with "Hv") as %?; [done|].
-    iDestruct ("HT" with "Hv") as (?) "?". iExists _. rewrite uninit_own_spec. by iFrame.
-  Qed.
-  Definition uninit_mono'_inst := [instance uninit_mono'].
 
   (*   (* Typing rule for [Return] (used in [theories/typing/automation.v]). *)
   Lemma type_return Q e fn ls R:
@@ -298,7 +286,7 @@ Section uninit.
     match list_assoc x (f.(fn_params) ++ f.(fn_temps)) with
     | Some cty => ∃ v, env.temp x v
     | None => match list_assoc x f.(fn_vars) with
-              | Some cty => ∃ b, env.lvar x cty b ∗ ⎡(b, Ptrofs.zero) ◁ₗ uninit cty⎤
+              | Some cty => ∃ b, env.lvar x cty b ∗ (b, Ptrofs.zero) ◁ₗ uninit cty
               | None => False
               end
     end.

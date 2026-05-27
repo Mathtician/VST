@@ -85,7 +85,7 @@ Section array.
     intros Hv ? Hs1 Hs2 Hs Hl.
     apply (pure_equiv _  _ (data_at_rec_lemmas.value_fits (tarray cty s) (v_hd++v_tl))).
     { rewrite Hv.
-      apply data_at_rec_value_fits. }
+      iIntros "H"; iDestruct (data_at_rec_value_fits with "H") as %?; done. }
     { iDestruct 1 as "(↦hd & ↦tl)".
       iPoseProof (data_at_rec_value_fits with "↦hd") as "%v_fits1".
       iPoseProof (data_at_rec_value_fits with "↦tl") as "%v_fits2".
@@ -109,7 +109,7 @@ Section array.
     }
     rewrite !Z.sub_0_r !Z.max_r; [|rep_lia..].
     rewrite Hsub1 Hsub2.
-    f_equiv.
+    rewrite embed_sep; f_equiv; try done.
     rewrite [in X in _ ⊣⊢ X ]/data_at_rec /unfold_reptype /= .
     apply seplog_tactics.eq_equiv.
     rewrite !Z.max_r; [|rep_lia..].
@@ -589,17 +589,16 @@ Section array.
   
   Lemma subsume_array A cty_arr tys1 tys2 l β T:
     (∀ id,
-       subsume (sep_list id type [] tys1 (λ i ty, ⎡(l arr_ofs{cty_arr}ₗ i) ◁ₗ{β} ty⎤:assert))
-         (λ x, sep_list id type [] (tys2 x) (λ i ty, ⎡(l arr_ofs{cty_arr}ₗ i) ◁ₗ{β} ty⎤)) T)
-    ⊢ subsume (⎡l ◁ₗ{β} array cty_arr tys1⎤) (λ x : A, ⎡l ◁ₗ{β} array cty_arr (tys2 x)⎤) T.
+       subsume (sep_list id type [] tys1 (λ i ty, (l arr_ofs{cty_arr}ₗ i) ◁ₗ{β} ty))
+         (λ x, sep_list id type [] (tys2 x) (λ i ty, (l arr_ofs{cty_arr}ₗ i) ◁ₗ{β} ty)) T)
+    ⊢ subsume (l ◁ₗ{β} array cty_arr tys1) (λ x : A, l ◁ₗ{β} array cty_arr (tys2 x)) T.
   Proof.
     unfold sep_list. iIntros "H (% & H1)".
     iDestruct ("H" $! {|sep_list_len := length tys1|} with "[H1]") as (?) "[[%Heq ?] ?]".
     { rewrite {1}/ty_own /=.
-      iSplit; [done|].
-      rewrite embed_big_sepL //.
+      iSplit => //.
     }
-    rewrite /= -embed_big_sepL. iFrame.
+    rewrite /=. iFrame.
     rewrite Heq //.
   Qed.
 
@@ -608,8 +607,8 @@ Section array.
 
   Lemma type_place_array ge l β v tyv tys cty1 cty2 ofs_cty K T:
     <affine> ⌜cty1 = tint⌝ ∗
-    (⎡v ◁ᵥₐₗ|ofs_cty| tyv⎤ -∗ 
-      ∃ i, <affine> ⌜cty1 = cty2⌝ ∗ ⎡v ◁ᵥₐₗ|ofs_cty| i @ int (val_type ofs_cty)⎤ ∗
+    (v ◁ᵥₐₗ|ofs_cty| tyv -∗ 
+      ∃ i, <affine> ⌜cty1 = cty2⌝ ∗ v ◁ᵥₐₗ|ofs_cty| i @ int (val_type ofs_cty) ∗
       <affine> ⌜0 ≤ i⌝ ∗ <affine> ⌜i < length tys⌝ ∗
      ∀ ty, <affine> ⌜tys !! Z.to_nat i = Some ty⌝ -∗
       typed_place ge K (l arr_ofs{cty2}ₗ i) β ty (λ l2 β2 ty2 typ,
@@ -644,12 +643,11 @@ Section array.
     iSplit => //.
     { rewrite /sc_binop /sc_add. destruct ofs_cty; try done. simpl. destruct i0; done. }
     iExists _. iSplit => //.
-    rewrite embed_big_sepL.
     iDestruct (big_sepL_insert_acc with "Hl") as "[Hl Hc]" => //. rewrite Z2Nat.id//.
     iApply ("HP" $! ty with "[//] Hl"). iIntros (l' ty2 β2 typ R) "Hl' Htyp HT".
     iApply ("HΦ" with "Hl' [-HT] HT"). iIntros (ty') "Hl'".
     iMod ("Htyp" with "Hl'") as "[? $]".
-   iSplitR; first by rewrite length_insert. rewrite embed_big_sepL.  iApply ("Hc" with "[$]").
+   iSplitR; first by rewrite length_insert. iApply ("Hc" with "[$]").
   Qed.
   Definition type_place_array_inst := [instance type_place_array].
   Global Existing Instance type_place_array_inst.
@@ -715,9 +713,9 @@ Section array.
      (* TODO generalize this *)
     <affine> ⌜0 < length tys⌝ ∗
     <affine> ⌜0 ≤ i ≤ length tys⌝ ∗
-    (⎡l ◁ₗ{β} array elm_cty tys⎤ -∗ T (adr2val $ l arr_ofs{elm_cty}ₗ i)
-                                     ((l arr_ofs{elm_cty}ₗ i) @ &own (array_ptr elm_cty l i $ length tys)))
-    ⊢ typed_bin_op genv_t l ⎡l ◁ₗ{β} array elm_cty tys⎤ v ⎡v ◁ᵥₐₗ|ofs_cty| i @ int (val_type ofs_cty)⎤ Oadd (tptr elm_cty) ofs_cty (tptr elm_cty) T.
+    (l ◁ₗ{β} array elm_cty tys -∗ T (adr2val $ l arr_ofs{elm_cty}ₗ i)
+                                    ((l arr_ofs{elm_cty}ₗ i) @ &own (array_ptr elm_cty l i $ length tys)))
+    ⊢ typed_bin_op genv_t l (l ◁ₗ{β} array elm_cty tys) v (v ◁ᵥₐₗ|ofs_cty| i @ int (val_type ofs_cty)) Oadd (tptr elm_cty) ofs_cty (tptr elm_cty) T.
   Proof.
     iIntros "( % & % & HT) (% & Hl) Hv" (Φ) "HΦ".
     iDestruct (ty_own_val_int_in_range with "Hv") as "%".
@@ -758,9 +756,9 @@ Section array.
     <affine> ⌜it = tint⌝ ∗ (* TODO generalize this *)
     <affine> ⌜0 < len⌝ ∗
     <affine> ⌜0 ≤ idx + i ≤ len⌝ ∗
-    (⎡l ◁ₗ{β} array_ptr elm_cty base idx len⎤ -∗ T (adr2val $ base arr_ofs{elm_cty}ₗ (idx+i)) 
+    (l ◁ₗ{β} array_ptr elm_cty base idx len -∗ T (adr2val $ base arr_ofs{elm_cty}ₗ (idx+i)) 
                                                  ((base arr_ofs{elm_cty}ₗ (idx+i)) @ &own (array_ptr elm_cty base (idx + i) len)))
-    ⊢ typed_bin_op genv_t l ⎡l ◁ₗ{β} array_ptr elm_cty base idx len⎤ v ⎡v ◁ᵥₐₗ|it| i @ int it⎤ Oadd (tptr elm_cty) it (tptr elm_cty) T.
+    ⊢ typed_bin_op genv_t l (l ◁ₗ{β} array_ptr elm_cty base idx len) v (v ◁ᵥₐₗ|it| i @ int it) Oadd (tptr elm_cty) it (tptr elm_cty) T.
   Proof.
     iIntros "(-> & % & % & HT)".
     set (base arr_ofs{elm_cty}ₗ (idx + i)) as base_ptr.
@@ -793,9 +791,9 @@ Section array.
     <affine> ⌜it = tint⌝ ∗ (* TODO generalize this *)
     <affine> ⌜0 < len⌝ ∗
     <affine> ⌜0 ≤ idx - i ≤ len⌝ ∗
-    (⎡l ◁ₗ{β} array_ptr elm_cty base idx len⎤ -∗ T (adr2val $ base arr_ofs{elm_cty}ₗ (idx-i)) 
+    (l ◁ₗ{β} array_ptr elm_cty base idx len -∗ T (adr2val $ base arr_ofs{elm_cty}ₗ (idx-i)) 
                                                  ((base arr_ofs{elm_cty}ₗ (idx-i)) @ &own (array_ptr elm_cty base (idx-i) len)))
-    ⊢ typed_bin_op genv_t l ⎡l ◁ₗ{β} array_ptr elm_cty base idx len⎤ v ⎡v ◁ᵥₐₗ|it| i @ int it⎤ Osub (tptr elm_cty) it (tptr elm_cty) T.
+    ⊢ typed_bin_op genv_t l (l ◁ₗ{β} array_ptr elm_cty base idx len) v (v ◁ᵥₐₗ|it| i @ int it) Osub (tptr elm_cty) it (tptr elm_cty) T.
   Proof.
     iIntros "(-> & % & % & HT)".
     set (base arr_ofs{elm_cty}ₗ (idx - i)) as base_ptr.

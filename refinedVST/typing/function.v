@@ -32,8 +32,8 @@ Section function.
   }.
 
   Definition fn_ret_prop {B} fn (fr : B → fn_ret) : option val → type → assert  :=
-    (λ v ty, ⎡opt_ty_own_val (fn_return fn) ty v⎤ -∗ (<affine> ⌜match v with Some v => tc_val (fn_return fn) v | None => fn_return fn = Tvoid end⌝ ∗
-       ∃ x, ⎡opt_ty_own_val (fn_return fn) (fr x).(fr_rty) v⎤ ∗ ⎡(fr x).(fr_R)⎤ ∗
+    (λ v ty, opt_ty_own_val (fn_return fn) ty v -∗ (<affine> ⌜match v with Some v => tc_val (fn_return fn) v | None => fn_return fn = Tvoid end⌝ ∗
+       ∃ x, opt_ty_own_val (fn_return fn) (fr x).(fr_rty) v ∗ ⎡(fr x).(fr_R)⎤ ∗
        ∃ lv, stackframe_of1' cenv_cs fn lv))%I.
 
   Definition fn_ret_assert {B} fn (fr : B → fn_ret) : type_ret_assert :=
@@ -50,7 +50,7 @@ Section function.
   (* Do we need a ty_own_temp, ty_own_var, etc. as well? *)
   Definition typed_var_block (idt: ident * Ctypes.type): assert :=
   ⌜(Ctypes.sizeof (snd idt) <= Ptrofs.max_unsigned)%Z⌝ ∧
-  ∃ b, lvar (fst idt) (snd idt) b ∗ ⎡(b, Ptrofs.zero) ◁ₗ uninit (snd idt)⎤.
+  ∃ b, lvar (fst idt) (snd idt) b ∗ (b, Ptrofs.zero) ◁ₗ uninit (snd idt).
 
   Definition typed_stackframe (f: Clight.function) (lv: list val) : assert :=
     ([∗ list] idt ∈ fn_vars f, typed_var_block idt) ∗
@@ -58,8 +58,8 @@ Section function.
 
   Definition typed_function (fn : function) (fp : A → fn_params) : iProp Σ :=
     (<affine> ∀ x, <affine> ⌜Forall2 (λ (ty : type) '(_, p), ty.(ty_has_op_type) p MCNone) (fp x).(fp_atys) (Clight.fn_params fn)⌝ ∗
-      □ ∀ n (lsa : vec val (length (fp x).(fp_atys))),
-         (([∗ list] v;'(cty,t)∈lsa;zip (map snd (Clight.fn_params fn)) (fp x).(fp_atys), v ◁ᵥₐₗ|cty| t) ∗
+      □ ∀ n0 n (lsa : vec val (length (fp x).(fp_atys))),
+         (([∗ list] v;'(cty,t)∈lsa;zip (map snd (Clight.fn_params fn)) (fp x).(fp_atys), (v ◁ᵥₐₗ|cty| t) n0) ∗
           typed_stackframe fn (lsa ++ repeat Vundef (length fn.(fn_temps))) n ∗
           (fp x).(fp_Pa)) -∗
           typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr)) n
@@ -88,9 +88,9 @@ Section function.
     iIntros "!>" (x). iDestruct ("HT" $! x) as ([Hlen Hall]%Forall2_same_length_lookup) "#HT".
     have [Heq [Hatys [HPa Hret]]] := Hfn x.
     iSplit; [done|].
-    iIntros "!> %% (Ha & Hstack)". rewrite -HPa.
+    iIntros "!> %%% (Ha & Hstack)". rewrite -HPa.
     have [|lsa' Hlsa]:= vec_cast _ lsa (length (fp_atys (fp1 x))). { by rewrite Hatys. }
-    iApply monPred_in_entails; first iApply typed_stmt_mono; last iApply ("HT" $! _ lsa'); simpl; try done.
+    iApply monPred_in_entails; first iApply typed_stmt_mono; last iApply ("HT" $! _ _ lsa'); simpl; try done.
     - iIntros "HR Hty".
       iDestruct ("HR" with "Hty") as (? y) "[?[??]]".
       have [-> ->]:= Hret y.
@@ -110,12 +110,12 @@ Section function.
       intros (? & ? & -> & Hty2 & Haty2)%lookup_zip_with_Some (? & ? & -> & Hty1 & Haty1)%lookup_zip_with_Some.
       rewrite Hty2 in Hty1; inv Hty1.
       have := Hatys k. rewrite Haty1 Haty2=> /(Some_equiv_eq _ _)[?[? [? Heqv]]] [_ ?].
-      by f_equiv.
+      by repeat f_equiv.
   Qed.
 
   Lemma prove_typed_function P `{!Persistent P} `{!Affine P} fn fp :
     (forall x, Forall2 (λ (ty : type) '(_, p), ty.(ty_has_op_type) p MCNone) (fp x).(fp_atys) (Clight.fn_params fn) ∧
-     forall (lsa : vec val (length (fp x).(fp_atys))), ⎡P⎤ -∗ (([∗ list] v;'(cty,t)∈lsa;zip (map snd (Clight.fn_params fn)) (fp x).(fp_atys), ⎡v ◁ᵥₐₗ|cty| t⎤) ∗
+     forall n0 (lsa : vec val (length (fp x).(fp_atys))), ⎡P⎤ -∗ (⎡([∗ list] v;'(cty,t)∈lsa;zip (map snd (Clight.fn_params fn)) (fp x).(fp_atys), (v ◁ᵥₐₗ|cty| t) n0)⎤ ∗
           typed_stackframe fn (lsa ++ repeat Vundef (length fn.(fn_temps))) ∗
           ⎡(fp x).(fp_Pa)⎤) -∗
           typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr))) →
@@ -126,15 +126,12 @@ Section function.
     iIntros "!>" (x).
     destruct (H x) as (? & Hty).
     iSplit => //.
-    iIntros "!>" (n lsa) "H".
-    specialize (Hty lsa); apply monPred_in_entails with (i := n) in Hty.
+    iIntros "!>" (n0 n lsa) "H".
+    specialize (Hty n0 lsa); apply monPred_in_entails with (i := n) in Hty.
     rewrite monPred_at_emp in Hty.
     iPoseProof (Hty with "[//]") as "Hty"; monPred.unseal.
     iApply ("Hty" with "[//] P [//]").
-    iDestruct "H" as "(H & $ & $)".
-    rewrite monPred_at_big_sepL2.
-    iApply (big_sepL2_mono with "H").
-    intros ?? (?,?) ??; by rewrite -monpred.monPred_embed_unseal monPred_at_embed.
+    iDestruct "H" as "($ & $ & $)".
   Qed.
     
   Definition fntbl_entry f fn := let '(b, o) := f in o = Ptrofs.zero /\ Genv.find_def ge b = Some (Gfun (Internal fn)) /\
@@ -153,8 +150,8 @@ Section function.
 
   Program Definition function_ptr_type (fp : A → fn_params) (f : address) : type := {|
     ty_has_op_type ot mt := (∃ fn, fntbl_entry f fn /\ ot = tptr (type_of_function fn))%type;
-    ty_own β l := (∃ fn, <affine> ⌜l `has_layout_loc` tptr (type_of_function fn)⌝ ∗ l ↦[β]|tptr (type_of_function fn)| adr2val f ∗ <affine> ⌜fntbl_entry f fn⌝ ∗ <affine> ▷ typed_function fn fp)%I;
-    ty_own_val cty v := (∃ fn, <affine> ⌜cty = tptr (type_of_function fn) /\ repinject cty v = adr2val f⌝ ∗ <affine> ⌜fntbl_entry f fn⌝ ∗ <affine> ▷ typed_function fn fp)%I;
+    ty_own β l := (∃ fn, <affine> ⌜l `has_layout_loc` tptr (type_of_function fn)⌝ ∗ l ↦[β]|tptr (type_of_function fn)| adr2val f ∗ <affine> ⌜fntbl_entry f fn⌝ ∗ <affine> ▷ ⎡typed_function fn fp⎤)%I;
+    ty_own_val cty v := (∃ fn, <affine> ⌜cty = tptr (type_of_function fn) /\ repinject cty v = adr2val f⌝ ∗ <affine> ⌜fntbl_entry f fn⌝ ∗ <affine> ▷ ⎡typed_function fn fp⎤)%I;
   |}.
   Next Obligation. iDestruct 1 as (fn) "[? [H [? ?]]]". iExists _. iFrame. by iApply (heap_mapsto_own_state_share with "H"). Qed.
   Next Obligation. iIntros (fp f ot mt l (? & ? & ->)). iDestruct 1 as (??) "(?&%&?)". eapply fntbl_entry_inj in H; eauto; subst; done. Qed.
@@ -211,14 +208,15 @@ Section function.
 
   Transparent simple_mapsto.memory_block.
 
-  Lemma type_call_fnptr l i v vl ctys `{!TCEq (length vl) (length ctys)} retty cc tys fp T :
-    (⎡([∗ list] v;'(cty,ty)∈vl; zip ctys tys, v ◁ᵥₐₗ|cty| ty)⎤ -∗ ∃ x,
-      ⎡([∗ list] v;'(cty,ty)∈vl; zip ctys (fp x).(fp_atys), v ◁ᵥₐₗ|cty| ty)⎤ ∗
+  Lemma type_call_fnptr l i v vl ctys `{!TCEq (length vl) (length ctys)}
+    retty cc tys fp {Hobj : ∀ v it x x', Objective (v ◁ᵥₐₗ| it | ((fp x).(fp_fr) x').(fr_rty))} T :
+    (([∗ list] v;'(cty,ty)∈vl; zip ctys tys, v ◁ᵥₐₗ|cty| ty) -∗ ∃ x,
+      ([∗ list] v;'(cty,ty)∈vl; zip ctys (fp x).(fp_atys), v ◁ᵥₐₗ|cty| ty) ∗
       ⎡(fp x).(fp_Pa)⎤ ∗ ∀ v x',
       ⎡((fp x).(fp_fr) x').(fr_R)⎤ -∗
-      set_temp_opt i v (⎡opt_ty_own_val retty ((fp x).(fp_fr) x').(fr_rty) v⎤ -∗
+      set_temp_opt i v (opt_ty_own_val retty ((fp x).(fp_fr) x').(fr_rty) v -∗
       T_normal T))
-    ⊢ typed_call Espec ge i v ⎡v ◁ᵥₐₗ|tptr (Tfunction ctys retty cc)| l @ function_ptr fp⎤ vl ctys retty cc tys T.
+    ⊢ typed_call Espec ge i v (v ◁ᵥₐₗ|tptr (Tfunction ctys retty cc)| l @ function_ptr fp) vl ctys retty cc tys T.
   Proof.
     inversion TCEq0 as [Hlen].
     iIntros "HT (%fn&(%&%)&%He&Hfn)".
@@ -237,19 +235,22 @@ Section function.
     iIntros "(Hfn & Hvl & HPa & Hpost) %% Hret %% Hstack !>".
     pose proof (Forall2_length Hl) as Hlena.
     rewrite Hlena -Hlen.
-    iSpecialize ("Hfn" $! _ (Vector.of_list vl) with "[Hvl $HPa Hstack]").
+    iSpecialize ("Hfn" $! _ _ (Vector.of_list vl) with "[Hvl $HPa Hstack]").
     { destruct l, He as (_ & _ & _ & _ & _ & _ & ? & ?).
-      rewrite vec_to_list_to_vec stackframe_of_typed //; iFrame. }
+      rewrite vec_to_list_to_vec stackframe_of_typed //; iFrame.
+      rewrite monPred_at_big_sepL2; iApply (big_sepL2_mono with "Hvl").
+      intros ?? (?, ?).
+      auto. }
     iApply (monPred_in_entails with "[-]"); first apply wp_strong_mono.
     rewrite monPred_at_sep; iFrame "Hfn"; monPred.unseal.
     iSplit.
     - rewrite /fn_ret_prop /set_temp_opt /Clight_seplog.bind_ret; iIntros (??) "H !>"; monPred.unseal.
       unfold sqsubseteq in *; subst; iFrame.
-      setoid_rewrite monPred_at_affinely.
+      setoid_rewrite monPred_at_affinely; monPred.unseal.
       iDestruct ("H" with "[//] [//]") as (??) "(_ & HR & $)".
       iSplit; first done.
       iSpecialize ("Hpost" $! None with "[//] HR"); simpl.
-      destruct i; simpl.
+      destruct i; simpl; monPred.unseal.
       * iDestruct "Hpost" as "($ & H)"; iIntros (? ->) "?"; by iApply ("H" with "[//] [$] [//]").
       * by iApply "Hpost".
     - do 2 (iSplit; intros; first by monPred.unseal; iIntros (??) "[]").
@@ -260,8 +261,12 @@ Section function.
       iSplit; first done.
       iSpecialize ("Hpost" $! ret with "[//] HR"); simpl.
       destruct i; simpl.
-      * iDestruct "Hpost" as "($ & H)"; iIntros (? ->) "?"; by iApply ("H" with "[//] [$] [//]").
-      * by iApply "Hpost".
+      * iDestruct "Hpost" as "($ & H)"; iIntros (? <-) "?"; iApply ("H" with "[//] [$] [//]").
+        destruct ret; simpl; last by rewrite !monPred_at_emp.
+        by iApply objective_at.
+      * iApply "Hpost"; try done.
+        destruct ret; simpl; last by rewrite !monPred_at_emp.
+        by iApply objective_at.
   Qed.
   Definition type_call_fnptr_inst := [instance type_call_fnptr].
   Global Existing Instance type_call_fnptr_inst.
@@ -516,6 +521,6 @@ Section test.
   Local Definition test_fn2 := fn(∀ () : (); True) → ∃ () : (), void; True.
   Local Definition test_fn3 := fn(∀ (n1, n2, n3, n4, n5, n6, n7) : Z * Z * Z * Z * Z * Z * Z; uninit size_t, uninit size_t, uninit size_t, uninit size_t, uninit size_t, uninit size_t, uninit size_t, uninit size_t; True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True ∗ True) → ∃ (n1, n2, n3, n4, n5, n6, n7) : Z * Z * Z * Z * Z * Z * Z, uninit size_t; True%I.
 
-  Goal ∀ Espec ge cty (l : address) fn, l ◁ᵥₐₗ|cty| l @ function_ptr Espec ge test_fn2 -∗ typed_function Espec ge fn test_fn.
+  Goal ∀ Espec ge cty (l : address) fn, l ◁ᵥₐₗ|cty| l @ function_ptr Espec ge test_fn2 -∗ ⎡typed_function Espec ge fn test_fn⎤.
   Abort.
 End test.

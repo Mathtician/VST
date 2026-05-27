@@ -4,9 +4,9 @@ From VST.typing Require Import programs optional.
 Set Warnings "notation-overridden,custom-entry-overridden,hiding-delimiting-key".
 From VST.typing Require Import type_options.
 
-Class OwnConstraint `{!typeG OK_ty Σ} {cs : compspecs} (P : own_state → mpred) : Prop := {
+Class OwnConstraint `{!typeG OK_ty Σ} {cs : compspecs} (P : own_state → assert) : Prop := {
   own_constraint_persistent : Persistent (P Shr);
-  own_constraint_share E : ↑shrN ⊆ E → P Own ={E}=∗ P Shr;
+  own_constraint_share E : ↑shrN ⊆ E → P Own ⊢ |={E}=> P Shr;
 }.
 
 Global Existing Instance own_constraint_persistent.
@@ -14,7 +14,7 @@ Global Existing Instance own_constraint_persistent.
 Section own_constrained.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
-  Program Definition own_constrained (P : own_state → mpred) `{!OwnConstraint P} (ty : type) : type := {|
+  Program Definition own_constrained (P : own_state → assert) `{!OwnConstraint P} (ty : type) : type := {|
     ty_has_op_type ot mt := ty.(ty_has_op_type) ot mt;
     ty_own β l := (l ◁ₗ{β} ty ∗ P β)%I;
     ty_own_val cty v := (v ◁ᵥ|cty| ty ∗ P Own)%I;
@@ -49,7 +49,7 @@ Section own_constrained.
   Qed.
 
   Lemma copy_as_own_constrained l β cty P `{!OwnConstraint P} ty {HC: CopyAs l β cty ty} T:
-    (⎡P β⎤ -∗ (HC T).(i2p_P)) ⊢ copy_as l β cty (own_constrained P ty) T.
+    (P β -∗ (HC T).(i2p_P)) ⊢ copy_as l β cty (own_constrained P ty) T.
   Proof.
     iIntros "HT [Hty HP]". iDestruct (i2p_proof with "(HT HP)") as "HT". by iApply "HT".
   Qed.
@@ -57,35 +57,35 @@ Section own_constrained.
   Global Existing Instance copy_as_own_constrained_inst.
 
   Lemma copy_as_defined_own_constrained l β cty P `{!OwnConstraint P} ty {HC: CopyAsDefined l β cty ty} T:
-    (⎡P β⎤ -∗ (HC T).(i2p_P)) ⊢ copy_as_defined l β cty (own_constrained P ty) T.
+    (P β -∗ (HC T).(i2p_P)) ⊢ copy_as_defined l β cty (own_constrained P ty) T.
   Proof.
     iIntros "HT [Hty HP]". iDestruct (i2p_proof with "(HT HP)") as "HT". by iApply "HT".
   Qed.
   Definition copy_as_defined_own_constrained_inst := [instance copy_as_defined_own_constrained].
   Global Existing Instance copy_as_defined_own_constrained_inst.
 
-  Lemma simplify_hyp_place_own_constrained P l β ty `{!OwnConstraint P} T:
+  Lemma simplify_hyp_place_own_constrained P l β ty `{!OwnConstraint P} (T : assert) :
     (P β -∗ l ◁ₗ{β} ty -∗ T) ⊢ simplify_hyp (l◁ₗ{β} own_constrained P ty) T.
   Proof. iIntros "HT [Hl HP]". by iApply ("HT" with "HP"). Qed.
   Definition simplify_hyp_place_own_constrained_inst :=
     [instance simplify_hyp_place_own_constrained with 0%N].
   Global Existing Instance simplify_hyp_place_own_constrained_inst.
 
-  Lemma simplify_goal_place_own_constrained P l β ty `{!OwnConstraint P} T:
+  Lemma simplify_goal_place_own_constrained P l β ty `{!OwnConstraint P} (T : assert) :
     l ◁ₗ{β} ty ∗ P β ∗ T  ⊢ simplify_goal (l◁ₗ{β} own_constrained P ty) T.
   Proof. iIntros "[$ [$ $]]". Qed.
   Definition simplify_goal_place_own_constrained_inst :=
     [instance simplify_goal_place_own_constrained with 0%N].
   Global Existing Instance simplify_goal_place_own_constrained_inst.
 
-  Lemma simplify_hyp_val_own_constrained P cty v ty `{!OwnConstraint P} T:
+  Lemma simplify_hyp_val_own_constrained P cty v ty `{!OwnConstraint P} (T : assert) :
     (P Own -∗ v ◁ᵥ|cty| ty -∗ T) ⊢ simplify_hyp (v ◁ᵥ|cty| own_constrained P ty) T.
   Proof. iIntros "HT [Hl HP]". by iApply ("HT" with "HP"). Qed.
   Definition simplify_hyp_val_own_constrained_inst :=
     [instance simplify_hyp_val_own_constrained with 0%N].
   Global Existing Instance simplify_hyp_val_own_constrained_inst.
 
-  Lemma simplify_goal_val_own_constrained P cty v ty `{!OwnConstraint P} T:
+  Lemma simplify_goal_val_own_constrained P cty v ty `{!OwnConstraint P} (T : assert) :
     v ◁ᵥ|cty| ty ∗ P Own ∗ T ⊢ simplify_goal (v ◁ᵥ|cty| own_constrained P ty) T.
   Proof. iIntros "[$ [$ $]]". Qed.
   Definition simplify_goal_val_own_constrained_inst :=
@@ -104,19 +104,19 @@ Section own_constrained.
   Global Instance optionable_agree_own_constrained P (ty2 : type) `{!OwnConstraint P} `{!OptionableAgree ty1 ty2} : OptionableAgree (own_constrained P ty1) ty2.
   Proof. done. Qed.
 
-  Definition tyown_constraint (l : address) (ty : type) (β : own_state) : iProp Σ := l ◁ₗ{β} ty.
+  Definition tyown_constraint (l : address) (ty : type) (β : own_state) : assert := l ◁ₗ{β} ty.
 
   Global Program Instance tyown_constraint_own_constraint l ty: OwnConstraint (tyown_constraint l ty).
   Next Obligation. move => ???. apply: ty_share. Qed.
 
-  Lemma simplify_hyp_place_tyown_constrained l β ty T:
+  Lemma simplify_hyp_place_tyown_constrained l β ty (T : assert) :
     (l ◁ₗ{β} ty -∗ T) ⊢ simplify_hyp (tyown_constraint l ty β) T.
   Proof. iIntros "HT Hl". by iApply "HT". Qed.
   Definition simplify_hyp_place_tyown_constrained_inst :=
     [instance simplify_hyp_place_tyown_constrained with 0%N].
   Global Existing Instance simplify_hyp_place_tyown_constrained_inst.
 
-  Lemma simplify_goal_place_tyown_constrained l β ty T:
+  Lemma simplify_goal_place_tyown_constrained l β ty (T : assert) :
     l ◁ₗ{β} ty ∗ T ⊢ simplify_goal (tyown_constraint l ty β) T.
   Proof. done. Qed.
   Definition simplify_goal_place_tyown_constrained_inst :=
@@ -132,21 +132,21 @@ Arguments tyown_constraint : simpl never.
 Section constrained.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
-  Definition persistent_own_constraint (P : mpred) (β : own_state) : mpred := □ P.
+  Definition persistent_own_constraint (P : assert) (β : own_state) : assert := □ P.
 
   Global Instance persistent_own_constraint_inst P: OwnConstraint (persistent_own_constraint P).
   Proof. constructor; [by apply _ | by iIntros (??) "H !>"]. Qed.
 
-  Lemma simplify_hyp_place_persistent_constrained P β T:
+  Lemma simplify_hyp_place_persistent_constrained P β (T : assert) :
     (P -∗ T) ⊢ simplify_hyp (persistent_own_constraint P β) T.
   Proof. iIntros "HT #Hl". by iApply "HT". Qed.
   Definition simplify_hyp_place_persistent_constrained_inst :=
     [instance simplify_hyp_place_persistent_constrained with 0%N].
   Global Existing Instance simplify_hyp_place_persistent_constrained_inst.
 
-  Lemma simplify_goal_place_persistent_constrained P `{!Persistent P} `{!Affine P} β T:
+  Lemma simplify_goal_place_persistent_constrained P `{!Persistent P} `{!Affine P} β (T : assert) :
     P ∗ T ⊢ simplify_goal (persistent_own_constraint P β) T.
-  Proof. iIntros "(H1 & H2)". iFrame "H2".
+  Proof. iIntros "(H1 & H2)". iFrame "H2". rewrite /persistent_own_constraint.
          by iApply bi.intuitionistic.
   Qed.
   Definition simplify_goal_place_persistent_constrained_inst :=
@@ -165,20 +165,20 @@ Notation "constrained< ty , P >" := (constrained ty P)
 Section nonshr_constrained.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
-  Definition nonshr_constraint (P : iProp Σ) (β : own_state) : iProp Σ :=
+  Definition nonshr_constraint (P : assert) (β : own_state) : assert :=
     match β with | Own => P | Shr => True end.
 
   Global Program Instance nonshr_constraint_own_constraint P: OwnConstraint (nonshr_constraint P).
   Next Obligation. iIntros (???) "?". done. Qed.
 
-  Lemma simplify_hyp_place_nonshr_constrained P T:
+  Lemma simplify_hyp_place_nonshr_constrained P (T : assert) :
     (P -∗ T) ⊢ simplify_hyp (nonshr_constraint P Own) T.
   Proof. iIntros "HT Hl". by iApply "HT". Qed.
   Definition simplify_hyp_place_nonshr_constrained_inst :=
     [instance simplify_hyp_place_nonshr_constrained with 0%N].
   Global Existing Instance simplify_hyp_place_nonshr_constrained_inst.
 
-  Lemma simplify_goal_place_nonshr_constrained P T:
+  Lemma simplify_goal_place_nonshr_constrained P (T : assert) :
     P ∗ T ⊢ simplify_goal (nonshr_constraint P Own) T.
   Proof. done. Qed.
   Definition simplify_goal_place_nonshr_constrained_inst :=

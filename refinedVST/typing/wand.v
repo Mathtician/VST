@@ -14,7 +14,7 @@ Section wand.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
   Context {A : Type}.
-  Implicit Types (P : A → iProp Σ).
+  Implicit Types (P : A → assert).
 
   Program Definition wand_ex P (ty : A → type) : type := {|
     ty_own β l := match β return _ with
@@ -27,7 +27,7 @@ Section wand.
   Solve Obligations with try done.
   Next Obligation. iIntros (?????) "H". done. Qed.
   
-  Lemma subsume_wand B l P1 (P2 : B → A → iProp Σ) ty1 ty2 T:
+  Lemma subsume_wand B l P1 (P2 : B → A → assert) ty1 ty2 T:
     (* The trick is that we prove the wand at the very end so it can
     use all leftover resources. This only works if there is at most
     one wand per block (but this is enough for iterating over linked
@@ -77,11 +77,11 @@ Section wand_val.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
   Context {A : Type}.
-  Implicit Types (P : A → iProp Σ).
+  Implicit Types (P : A → assert).
 
   Program Definition wand_val_ex P (cty: Ctypes.type) (ty : A → type) : type := {|
     ty_has_op_type ot mt := (ot = cty ∧ type_is_by_value cty = true)%type; 
-    ty_own β l := ∃ v, <affine> ⌜l `has_layout_loc` cty⌝ ∗ <affine>⌜v `has_layout_val` cty⌝ ∗
+    ty_own β l := ∃ v, <affine> ⌜l `has_layout_loc` cty⌝ ∗ <affine> ⌜v `has_layout_val` cty⌝ ∗
                                    l ↦[β]|cty| v ∗
         match β return _ with
         | Own => ∀ x, P x -∗ v ◁ᵥ|cty| (ty x)
@@ -126,7 +126,7 @@ Section wand_val.
   Qed.
   *)
   
-  Lemma subsume_wand_val B v ly2 P1 (P2 : B → A → iProp Σ) cty ty1 ty2 T:
+  Lemma subsume_wand_val B v ly2 P1 (P2 : B → A → assert) cty ty1 ty2 T:
     (* The trick is that we prove the wand at the very end so it can
     use all leftover resources. This only works if there is at most
     one wand per block (but this is enough for iterating over linked

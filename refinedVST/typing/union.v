@@ -17,17 +17,21 @@ Section union.
   Program Definition active_union (i : ident) (f : ident) (ty : type) : type := {|
     ty_own β l := ∃ m, <affine> ⌜∃ ul, (cenv_cs !! i)%maps = Some ul ∧ in_members f ul.(co_members) ∧ get_member f ul.(co_members) = m⌝ ∗
       <affine> ⌜l `has_layout_loc` Tunion i noattr⌝ ∗
-      heap_withspacer β (sizeof (field_type (name_member m) (get_co i).(co_members))) (co_sizeof (get_co i))
-        (λ p, match val2adr p with Some l => l ◁ₗ{β} ty | _ => False end) l;
+      ∃ n, stack_level n ∗
+      ⎡heap_withspacer β (sizeof (field_type (name_member m) (get_co i).(co_members))) (co_sizeof (get_co i))
+        (λ p, match val2adr p with Some l => (l ◁ₗ{β} ty) n | _ => False end) l⎤;
     ty_has_op_type _ _ := False%type;
     ty_own_val _ _ := True;
   |}%I.
   Solve Obligations with try done.
   Next Obligation.
-    iIntros (ul f ty l E ?). iDestruct 1 as (ly ?) "($ & Hp)". iExists _. iSplitR => //.
-    iDestruct "Hp" as "(H & ?)"; iSplitL "H"; first by iApply ty_share.
+    iIntros (ul f ty l E ?). iDestruct 1 as (ly ?) "($ & % & #L & Hp)". iExists _. iSplitR => //.
+    iFrame "L".
+    iDestruct "Hp" as "(H & ?)"; iSplitL "H".
+    { iApply stack_level_embed => //; iApply ty_share => //; iApply stack_level_elim => //. }
     rewrite /heap_spacer /mapsto_memory_block.at_offset. if_tac; first done.
-    iApply inv_alloc. iModIntro. iExists _. iFrame; auto.
+    rewrite -embed_fupd; iApply (embed_mono with "[- //]").
+    iIntros "?"; iApply logic.invariants.inv_alloc. iModIntro. iExists _. iFrame; auto.
   Qed.
 
   Lemma has_layout_union_noattr : forall i a l, l `has_layout_loc` (Tunion i a) ↔ l `has_layout_loc` (Tunion i noattr).
@@ -37,11 +41,11 @@ Section union.
     split; inversion 1; try done; eapply align_compatible_rec_Tunion; done.
   Qed.
 
-  Lemma mapsto_union : forall id a l v, l ↦|Tunion id a| v ⊣⊢ aggregate_pred.union_pred (co_members (get_co id))
+  Lemma mapsto_union : forall id a l v, l ↦|Tunion id a| v ⊣⊢ ⎡aggregate_pred.union_pred (co_members (get_co id))
     (fun it v => mapsto_memory_block.withspacer Tsh (sizeof (field_type (name_member it) (co_members (get_co id))))
                         (co_sizeof (get_co id))
                         (data_at_rec Tsh (field_type (name_member it) (co_members (get_co id))) v))
-    (unfold_reptype v) l.
+    (unfold_reptype v) l⎤.
   Proof.
     intros; rewrite /mapsto data_at_rec_eq //.
   Qed.
@@ -56,7 +60,6 @@ Section union.
     iDestruct 1 as (ly Hly) "HP".
     iIntros (Φ) "Hs HΦ" => /=.
     iApply ("HP" with "[Hs] HΦ").
-    iApply (embed_mono with "Hs"); iIntros "Hs".
     pose proof (field_type_in_members n (co_members (get_co ul))) as Hin; rewrite Hly in Hin.
     iExists (get_member n (co_members (get_co ul))). iSplit => //.
     { iPureIntro. unfold get_co in *; destruct (cenv_cs !! ul)%maps eqn: Hi; try done.
@@ -66,6 +69,8 @@ Section union.
     rewrite name_member_get Hly.
     replace (match (cenv_cs !! ul)%maps with | Some co => co_sizeof co | None => 0 end) with (co_sizeof (get_co ul));
       last by rewrite /get_co; destruct (cenv_cs !! ul)%maps.
+    iStopProof; split => i; rewrite /stack_level; monPred.unseal.
+    iIntros "?"; iExists i; rewrite monPred_at_affinely; iSplit => //.
     rewrite -{1}(isptr_offset_val_zero l) // -withspacer_uninit_memory_block //.
     - iStopProof; f_equiv; try done.
       rewrite /mapsto_memory_block.at_offset; extensionality p.
@@ -95,18 +100,21 @@ Section union.
     ⊢ typed_place ge (GetMemberUnionPCtx ul n :: K) l β (active_union ul n ty) T.
   Proof.
     iIntros "HP" (Φ) "Hs HΦ !>" => /=.
-    iDestruct "Hs" as (? (i & Hi & Hn & <-) ?) "[Hty Hspace]".
+    iDestruct "Hs" as (? (i & Hi & Hn & <-) ??) "(#L & Hty & Hspace)".
     iExists _, _. iSplit => //.
     { iPureIntro; split; first done.
       apply plain_members_union_field_offset; try done.
       destruct H as (_ & H & _). apply nested_pred_lemmas.complete_Tunion_plain in H.
       rewrite /get_co Hi // in H. }
     rewrite Ptrofs.add_zero /GetMemberUnionLoc; destruct l.
+    iPoseProof (stack_level_elim with "L Hty") as "Hty".
     iApply ("HP" with "Hty").
     iIntros (l2 β2 ty2 typ R) "Hl Hc HT".
     iApply ("HΦ" with "Hl [-HT] HT").
     iIntros (ty') "Hty". iMod ("Hc" with "Hty") as "[Hty $]". iModIntro.
     iExists _. rewrite /get_co Hi. iSplitR; first by eauto.
+    iPoseProof (stack_level_embed with "L Hty") as "Hty".
+    iFrame "L".
     by iFrame.
   Qed.
   Definition type_place_active_union_inst := [instance type_place_active_union].
@@ -182,13 +190,6 @@ Section union.
   Definition subsume_int_tunion_tag_inst := [instance subsume_int_tunion_tag].
   Global Existing Instance subsume_int_tunion_tag_inst.
 
-  Lemma subsume_int_tunion_tag' B ti x (n : Z) l β (T : B → assert):
-    (∃ y, <affine> ⌜ti.(ti_tag) (x y) =@{Z} n⌝ ∗ T y)
-    ⊢ subsume ⎡l ◁ₗ{β} n @ int size_t⎤ (λ y : B, ⎡l ◁ₗ{β} tunion_tag ti (x y)⎤) T.
-  Proof. iIntros "[% [<- ?]] ?". iExists _. iFrame. Qed.
-  Definition subsume_int_tunion_tag'_inst := [instance subsume_int_tunion_tag'].
-  Global Existing Instance subsume_int_tunion_tag'_inst.
-
   Lemma subsume_tunion_tag B ti x1 x2 l β T:
     (∃ y, <affine> ⌜ti.(ti_tag) x1 = ti.(ti_tag) (x2 y)⌝ ∗ T y)
     ⊢ subsume (l ◁ₗ{β} tunion_tag ti x1) (λ y : B, l ◁ₗ{β} tunion_tag ti (x2 y)) T.
@@ -196,20 +197,13 @@ Section union.
   Definition subsume_tunion_tag_inst := [instance subsume_tunion_tag].
   Global Existing Instance subsume_tunion_tag_inst.
 
-  Lemma subsume_tunion_tag' B ti x1 x2 l β (T : B → assert):
-    (∃ y, <affine> ⌜ti.(ti_tag) x1 = ti.(ti_tag) (x2 y)⌝ ∗ T y)
-    ⊢ subsume ⎡l ◁ₗ{β} tunion_tag ti x1⎤ (λ y : B, ⎡l ◁ₗ{β} tunion_tag ti (x2 y)⎤) T.
-  Proof. rewrite /ty_own/=. iIntros "[% [-> ?]] ?". iExists _. iFrame. Qed.
-  Definition subsume_tunion_tag'_inst := [instance subsume_tunion_tag'].
-  Global Existing Instance subsume_tunion_tag'_inst.
-
   Inductive trace_union :=
   | TraceUnion (info : tunion_info A).
 
   Lemma type_binop_tunion_tag_int ge op it it' ti x v1 n v2 T:
     case_destruct x (λ x' _,
-        li_trace (TraceUnion ti, x') (typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|size_t| ti.(ti_tag) x' @ int size_t⎤ v2 ⎡v2 ◁ᵥₐₗ|it| n @ int it⎤ op size_t it it' T))
-    ⊢ typed_bin_op ge v1 ⎡v1 ◁ᵥₐₗ|size_t| tunion_tag ti x⎤ v2 ⎡v2 ◁ᵥₐₗ|it| n @ int it⎤ op size_t it it' T.
+        li_trace (TraceUnion ti, x') (typed_bin_op ge v1 (v1 ◁ᵥₐₗ|size_t| ti.(ti_tag) x' @ int size_t) v2 (v2 ◁ᵥₐₗ|it| n @ int it) op size_t it it' T))
+    ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|size_t| tunion_tag ti x) v2 (v2 ◁ᵥₐₗ|it| n @ int it) op size_t it it' T.
   Proof. iDestruct 1 as (?) "?". by rewrite /(ty_own_val (tunion_tag _ _))/=. Qed.
   Definition type_binop_tunion_tag_int_eq_inst ge := [instance type_binop_tunion_tag_int ge Cop.Oeq].
   Global Existing Instance type_binop_tunion_tag_int_eq_inst.
@@ -297,22 +291,26 @@ Section union.
   (*** variant *)
   Program Definition variant (ti : tunion_info A) (x : A) (ty : type) : type := {|
     ty_has_op_type ot mt := (∃ a, ot = Tunion ti.(ti_union_layout) a) /\ ty.(ty_has_op_type) (field_type (name_member (ti_member ti x)) (get_co ti.(ti_union_layout)).(co_members)) MCNone;
-    ty_own β l := (<affine> ⌜l `has_layout_loc` Tunion ti.(ti_union_layout) noattr⌝ ∗ heap_withspacer β (sizeof (field_type (name_member (ti_member ti x)) (get_co ti.(ti_union_layout)).(co_members))) (co_sizeof (get_co ti.(ti_union_layout)))
-      (λ p, match val2adr p with Some l => l ◁ₗ{β} ty | _ => False end) l)%I;
+    ty_own β l := (<affine> ⌜l `has_layout_loc` Tunion ti.(ti_union_layout) noattr⌝ ∗
+      ∃ n, stack_level n ∗ ⎡heap_withspacer β (sizeof (field_type (name_member (ti_member ti x)) (get_co ti.(ti_union_layout)).(co_members))) (co_sizeof (get_co ti.(ti_union_layout)))
+      (λ p, match val2adr p with Some l => (l ◁ₗ{β} ty) n | _ => False end) l⎤)%I;
     ty_own_val cty v := (∃ v', <affine> ⌜v `has_layout_val` cty ∧
       ∃ a (Hcty : cty = Tunion ti.(ti_union_layout) a), unfold_reptype (rew Hcty in v) = inject_ti_field ti x v'⌝ ∗
       v' ◁ᵥ|field_type (name_member (ti_member ti x)) (get_co ti.(ti_union_layout)).(co_members)| ty)%I;
   |}.
-  Next Obligation. iIntros (??????) "($ & H & ?)". iSplitL "H"; first by iApply ty_share.
+  Next Obligation. iIntros (??????) "($ & % & #L & H & ?)". iFrame "L". iSplitL "H".
+    { iApply stack_level_embed => //; iApply ty_share => //; iApply stack_level_elim => //. }
     rewrite /heap_spacer /mapsto_memory_block.at_offset. if_tac; first done.
-    iApply inv_alloc. iModIntro. iExists _. iFrame; auto.
+    rewrite -embed_fupd; iApply embed_mono; first done.
+    iApply logic.invariants.inv_alloc. iModIntro. iExists _. iFrame; auto.
   Qed.
-  Next Obligation. iIntros (?????? ((? & ->) & ?)) "(% & Hv & _)".
+  Next Obligation. iIntros (?????? ((? & ->) & ?)) "(% & % & L & Hv & _)".
     rewrite has_layout_union_noattr //.
   Qed.
   Next Obligation. iIntros (?????? ((? & ->) & ?)) "(% & ($ & %) & Hv)". Qed.
   Next Obligation. iIntros (?????? ((? & ->) & ?)) => /=.
-    iIntros "(_ & Hl & Hspacer)".
+    iIntros "(_ & % & #L & Hl & Hspacer)".
+    iPoseProof (stack_level_elim with "L Hl") as "Hl".
     iDestruct (ty_deref with "Hl") as (v) "(? & Hv)"; first done.
     rewrite /has_layout_val /type_is_volatile. setoid_rewrite value_fits_eq; simpl.
     setoid_rewrite mapsto_union.
@@ -330,6 +328,8 @@ Section union.
     dependent destruction Hcty; simpl in *.
     rewrite Hinj inject_field_union_pred -heap_withspacer_eq.
     iDestruct "Hl" as "(Hl & $)"; simpl.
+    iDestruct (monPred_in_intro with "Hv") as (?) "(#L & Hv)"; iFrame "L".
+    iApply stack_level_embed => //; iPoseProof (stack_level_elim with "L Hv") as "Hv".
     destruct l; iApply (ty_ref with "[%] Hl Hv"); try done.
     pose proof (index_of_ti_member ti x) as Hf.
     apply elem_of_list_lookup_2, elem_of_list_In in Hf.
@@ -346,39 +346,31 @@ Section union.
             (l at_union{i}ₗ n ◁ₗ{β} ty2 y) ∗ T y)
     ⊢ subsume (l ◁ₗ{β} active_union i n ty1) (λ y : B, l ◁ₗ{β} variant ti (x y) (ty2 y)) T.
   Proof.
-    iIntros "HT". iDestruct 1 as (? (? & ? & ? & <-) ?) "[Hl Hpad]".
-    rewrite /GetMemberUnionLoc/=. destruct l; iDestruct ("HT" with "[$]") as (? <- <-) "[??]".
-    rewrite name_member_get. iExists _. iFrame. done.
+    iIntros "HT". iDestruct 1 as (? (? & ? & ? & <-) ??) "(#L & Hl & Hpad)".
+    iPoseProof (stack_level_elim with "L Hl") as "?".
+    rewrite /GetMemberUnionLoc/=. destruct l; iDestruct ("HT" with "[$]") as (? <- <-) "[Hl ?]".
+    iPoseProof (stack_level_embed with "L Hl") as "?".
+    rewrite name_member_get. iExists _. iFrame. iSplit => //.
   Qed.
   Definition subsume_active_union_variant_inst := [instance subsume_active_union_variant].
   Global Existing Instance subsume_active_union_variant_inst.
 
-  Lemma subsume_active_union_variant' B ti i x l β ty1 ty2 n (T : B → assert):
-    (⎡l at_union{i}ₗ n ◁ₗ{β} ty1⎤ -∗
-      ∃ y, <affine> ⌜ti.(ti_union_layout) = i⌝ ∗ <affine> ⌜name_member (ti_member ti (x y)) = n⌝ ∗
-            ⎡l at_union{i}ₗ n ◁ₗ{β} ty2 y⎤ ∗ T y)
-    ⊢ subsume ⎡l ◁ₗ{β} active_union i n ty1⎤ (λ y : B, ⎡l ◁ₗ{β} variant ti (x y) (ty2 y)⎤) T.
-  Proof.
-    iIntros "HT". iDestruct 1 as (? (? & ? & ? & <-) ?) "[Hl Hpad]".
-    rewrite /GetMemberUnionLoc/=. destruct l; iDestruct ("HT" with "[$]") as (? <- <-) "[??]".
-    rewrite name_member_get. iExists _. iFrame. done.
-  Qed.
-  Definition subsume_active_union_variant'_inst := [instance subsume_active_union_variant'].
-  Global Existing Instance subsume_active_union_variant'_inst.
-
-  Lemma subsume_variant_variant' B ti x1 x2 l β ty1 ty2 (T : B → assert):
-    (⎡l at_union{ti.(ti_union_layout)}ₗ (name_member (ti_member ti x1)) ◁ₗ{β} ty1⎤ -∗
+  Lemma subsume_variant_variant B ti x1 x2 l β ty1 ty2 (T : B → assert):
+    (l at_union{ti.(ti_union_layout)}ₗ (name_member (ti_member ti x1)) ◁ₗ{β} ty1 -∗
       ∃ y, <affine> ⌜ti.(ti_tag) x1 = ti.(ti_tag) (x2 y)⌝ ∗
-      ⎡l at_union{ti.(ti_union_layout)}ₗ (name_member (ti_member ti x1)) ◁ₗ{β} (ty2 y)⎤ ∗ T y)
-    ⊢ subsume ⎡l ◁ₗ{β} variant ti x1 ty1⎤ (λ y : B, ⎡l ◁ₗ{β} variant ti (x2 y) (ty2 y)⎤) T.
+      l at_union{ti.(ti_union_layout)}ₗ (name_member (ti_member ti x1)) ◁ₗ{β} (ty2 y) ∗ T y)
+    ⊢ subsume (l ◁ₗ{β} variant ti x1 ty1) (λ y : B, l ◁ₗ{β} variant ti (x2 y) (ty2 y)) T.
   Proof.
     iIntros "HT". rewrite {3 4}/ty_own/GetMemberUnionLoc/=/ti_member.
-    iIntros "(% & Hl & Hpad)".
-    destruct l; iDestruct ("HT" with "Hl") as (? Heq) "[??]". iExists _. iFrame.
+    iIntros "(% & % & #L & Hl & Hpad)".
+    iPoseProof (stack_level_elim with "L Hl") as "Hl".
+    destruct l; iDestruct ("HT" with "Hl") as (? Heq) "[Hl ?]".
+    iPoseProof (stack_level_embed with "L Hl") as "Hl".
+    iExists _. iFrame; iFrame "L".
     rewrite Heq. iFrame. done.
   Qed.
-  Definition subsume_variant_variant'_inst := [instance subsume_variant_variant'].
-  Global Existing Instance subsume_variant_variant'_inst.
+  Definition subsume_variant_variant_inst := [instance subsume_variant_variant].
+  Global Existing Instance subsume_variant_variant_inst.
 
   Lemma type_place_variant ge K β ul n l ty ti x {Heq: TCEq (name_member (ti_member ti x)) n} T :
     <affine> ⌜ul = ti.(ti_union_layout)⌝ ∗
@@ -387,7 +379,7 @@ Section union.
   Proof.
     move: Heq => /TCEq_eq <-.
     iIntros "[-> HP]" (Φ) "Hs HΦ !>" => /=.
-    rewrite {1}/ty_own /=. iDestruct "Hs" as (?) "[Hty Hpad]".
+    rewrite {1}/ty_own /=. iDestruct "Hs" as (??) "(#L & Hty & Hpad)".
     pose proof (index_of_ti_member ti x) as Hf.
     unfold get_co in *; destruct (cenv_cs !! ti_union_layout ti)%maps eqn: Hi; last done.
     apply elem_of_list_lookup_2, elem_of_list_In in Hf.
@@ -398,10 +390,12 @@ Section union.
       destruct H as (_ & H & _). apply nested_pred_lemmas.complete_Tunion_plain in H.
       rewrite /get_co Hi // in H. }
     rewrite Ptrofs.add_zero /GetMemberUnionLoc; destruct l.
+    iPoseProof (stack_level_elim with "L Hty") as "Hty".
     iApply ("HP" with "Hty").
     iIntros (l2 β2 ty2 typ R) "Hl Hc HT".
     iApply ("HΦ" with "Hl [-HT] HT").
     iIntros (ty') "Hty". iMod ("Hc" with "Hty") as "[Hty $]". iModIntro.
+    iPoseProof (stack_level_embed with "L Hty") as "Hty".
     iFrame.
     rewrite /get_co Hi. iSplitR; eauto.
   Qed.
@@ -410,11 +404,11 @@ Section union.
 
   Lemma type_place_variant_neq ge K ul n l ty ti x T :
     (<affine> ⌜ul = ti.(ti_union_layout)⌝ ∗ <affine> ⌜ty.(ty_has_op_type) (field_type (name_member (ti_member ti x)) (get_co ul).(co_members)) MCNone⌝ ∗
-     ∀ v, ⎡v ◁ᵥ|field_type (name_member (ti_member ti x)) (get_co ul).(co_members)|  ty⎤ -∗ typed_place ge (GetMemberUnionPCtx ul n :: K) l Own (uninit (Tunion ul noattr)) T)
+     ∀ v, v ◁ᵥ|field_type (name_member (ti_member ti x)) (get_co ul).(co_members)|  ty -∗ typed_place ge (GetMemberUnionPCtx ul n :: K) l Own (uninit (Tunion ul noattr)) T)
     ⊢ typed_place ge (GetMemberUnionPCtx ul n :: K) l Own (variant ti x ty) T.
   Proof.
     iIntros "[-> [% HP]]". iApply (typed_place_subsume _ _ _ _ (uninit (Tunion (ti_union_layout ti) noattr))).
-    iApply uninit_mono'.
+    iApply uninit_mono.
     { split; eauto. }
     iIntros (?) "(% & % & Hv)".
     iExists tt. by iApply "HP".
@@ -457,10 +451,10 @@ Section tunion.
   Global Existing Instance simplify_hyp_tunion_inst.
 
   Lemma simplify_hyp_tunion' ti x l β (T : assert):
-    (⎡l ◁ₗ{β} struct ti.(ti_base_layout) [
+    (l ◁ₗ{β} struct ti.(ti_base_layout) [
          tunion_tag ti x;
-         variant ti x (ti.(ti_type) x) ]⎤ -∗ T)
-    ⊢ simplify_hyp ⎡l◁ₗ{β} x @ tunion ti⎤ T.
+         variant ti x (ti.(ti_type) x) ] -∗ T)
+    ⊢ simplify_hyp (l◁ₗ{β} x @ tunion ti) T.
   Proof. iIntros "HT Hl". by iApply "HT". Qed.
   Definition simplify_hyp_tunion'_inst := [instance simplify_hyp_tunion' with 0%N].
   Global Existing Instance simplify_hyp_tunion'_inst.
@@ -474,15 +468,6 @@ Section tunion.
   Definition simplify_goal_tunion_inst := [instance simplify_goal_tunion with 0%N].
   Global Existing Instance simplify_goal_tunion_inst.
 
-  Lemma simplify_goal_tunion' ti x l β (T : assert):
-    ⎡l ◁ₗ{β} struct ti.(ti_base_layout) [
-         tunion_tag ti x;
-         variant ti x (ti.(ti_type) x) ]⎤ ∗ T
-    ⊢ simplify_goal ⎡l◁ₗ{β} x @ tunion ti⎤ T.
-  Proof. iIntros "[$ $]". Qed.
-  Definition simplify_goal_tunion'_inst := [instance simplify_goal_tunion' with 0%N].
-  Global Existing Instance simplify_goal_tunion'_inst.
-
   (* How do they manage without these? *)
     Lemma simplify_goal_tunion_unrefined ti l β T:
     (∃ x, l ◁ₗ{β} struct ti.(ti_base_layout) [
@@ -492,15 +477,6 @@ Section tunion.
   Proof. iIntros "(% & ? & $)". iExists _; iFrame. Qed.
   Definition simplify_goal_tunion_unrefined_inst := [instance simplify_goal_tunion_unrefined with 0%N].
   Global Existing Instance simplify_goal_tunion_unrefined_inst.
-
-  Lemma simplify_goal_tunion_unrefined' ti l β (T : assert):
-    (∃ x, ⎡l ◁ₗ{β} struct ti.(ti_base_layout) [
-         tunion_tag ti x;
-         variant ti x (ti.(ti_type) x) ]⎤ ∗ T)
-    ⊢ simplify_goal ⎡l◁ₗ{β} tunion ti⎤ T.
-  Proof. iIntros "(% & ? & $)". iExists _; iFrame. Qed.
-  Definition simplify_goal_tunion_unrefined'_inst := [instance simplify_goal_tunion_unrefined' with 0%N].
-  Global Existing Instance simplify_goal_tunion_unrefined'_inst.
 
 End tunion.
 

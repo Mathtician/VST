@@ -96,6 +96,12 @@ Proof.
   by rewrite bi.False_sep.
 Qed.
 
+Lemma down1_up1 : forall P, down1 (up1 P) ⊢ P.
+Proof.
+  split => n /=.
+  destruct n; [apply bi.False_elim | done].
+Qed.
+
 Lemma down1_sep_up1 : forall P Q, ⊢ down1 P -∗ Q -∗ down1 P ∗ down1 (up1 Q).
 Proof.
   split => n; monPred.unseal.
@@ -128,6 +134,12 @@ Proof. split => n /=; rewrite !monPred_at_intuitionistically //. Qed.
 Lemma down1_intuitionistically P : down1 (□ P) ⊣⊢ □ (down1 P).
 Proof. split => n /=. destruct n; rewrite !monPred_at_intuitionistically ?bi.intuitionistically_False //. Qed.
 
+#[global] Instance up1_affine P `{!Affine P} : Affine (up1 P).
+Proof. apply monPred_affine; simpl; apply _. Qed.
+
+#[global] Instance down1_affine P `{!Affine P} : Affine (down1 P).
+Proof. apply monPred_affine; simpl; apply _. Qed.
+
 Inductive Lower1 : assert → assert → Prop :=
   | lower1 P Q : (P ⊢ up1 Q) → Lower1 P Q.
 Existing Class Lower1.
@@ -151,6 +163,10 @@ Proof.
   rewrite up1_intuitionistically; by f_equiv.
 Qed.
 Definition modality_up1 := Modality _ modality_up1_mixin.
+
+Global Instance from_modal_up1 P :
+  FromModal True%type modality_up1 (up1 P) (up1 P) P | 1.
+Proof. by rewrite /FromModal. Qed.
 
 (* On the other hand, this version of down1 is not a modality, since we don't have
    emp ⊢ down1 emp (and if we did we wouldn't have any ability to eliminate down1_up1).

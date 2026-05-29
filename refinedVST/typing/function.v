@@ -1,3 +1,4 @@
+From iris.proofmode Require Export monpred.
 Set Warnings "-notation-overridden,-custom-entry-overridden,-hiding-delimiting-key".
 From VST.veric Require Import env Clight_core Clight_seplog.
 From VST.typing Require Export type.
@@ -88,8 +89,7 @@ Section function.
     iIntros "!>" (x). iDestruct ("HT" $! x) as ([Hlen Hall]%Forall2_same_length_lookup) "#HT".
     have [Heq [Hatys [HPa Hret]]] := Hfn x.
     iSplit; [done|].
-    iModIntro. iApply (monPred_objectively_mono with "HT"); iIntros "HT".
-    iIntros (?) "(Ha & Hstack)". rewrite -HPa.
+    iIntros "!> !>" (?) "(Ha & Hstack)". rewrite monPred_objectively_elim -HPa.
     have [|lsa' Hlsa]:= vec_cast _ lsa (length (fp_atys (fp1 x))). { by rewrite Hatys. }
     iApply typed_stmt_mono; last iApply ("HT" $! lsa'); simpl; try done.
     - iIntros "HR Hty".
@@ -206,40 +206,6 @@ Section function.
 
   Transparent simple_mapsto.memory_block.
 
-  (* up *)
-  Lemma up1_down1 : forall P, up1 (down1 P) ⊣⊢ P.
-  Proof.
-    split => n. done.
-  Qed.
-
-  Lemma up1_objective : forall P `{!Objective P}, P ⊣⊢ up1 P.
-  Proof.
-    split => n.
-    rewrite /up1 /=.
-    iSplit; iApply objective_at.
-  Qed.
-
-  Lemma up1_sep : forall P Q, up1 P ∗ up1 Q ⊣⊢ up1 (P ∗ Q).
-  Proof.
-    split => n.
-    by rewrite /up1; monPred.unseal.
-  Qed.
-
-  Lemma down1_sep : forall P Q, down1 P ∗ down1 Q ⊣⊢ down1 (P ∗ Q).
-  Proof.
-    split => n.
-    rewrite /down1; monPred.unseal.
-    destruct n; try done.
-    by rewrite bi.False_sep.
-  Qed.
-
-  Lemma down1_sep_up1 : forall P Q, down1 P -∗ Q -∗ down1 P ∗ down1 (up1 Q).
-  Proof.
-    split => n; monPred.unseal.
-    iIntros "_ %% P % <- Q".
-    destruct j; [done | iFrame].
-  Qed.
-
   Lemma type_call_fnptr l i v vl ctys `{!TCEq (length vl) (length ctys)}
     retty cc tys fp T :
     (([∗ list] v;'(cty,ty)∈vl; zip ctys tys, v ◁ᵥₐₗ|cty| ty) -∗ ∃ x,
@@ -262,12 +228,8 @@ Section function.
     iIntros "Htys !>"; iDestruct ("HT" with "Htys") as "(%x&Hvl&HPa&Hr)".
     iDestruct ("Hfn" $! x) as "[%Hl #Hfn]".
     rewrite /call_assert /internal_call_assert.
-    (* need modality support *)
-    iCombine "Hvl HPa Hr" as "H".
-    iPoseProof (up1_down1 with "H") as "H".
-    iStopProof.
-    rewrite (up1_objective (□ _)) up1_sep; apply up1_mono; rewrite -!down1_sep.
-    iIntros "(#Hfn & Hvl & HPa & Hpost) Hret Hstack !>".
+    iModIntro.
+    iIntros "Hret Hstack !>".
     pose proof (Forall2_length Hl) as Hlena.
     rewrite Hlena -Hlen monPred_objectively_elim.
     iSpecialize ("Hfn" $! (Vector.of_list vl) with "[Hvl $HPa Hstack]").
@@ -278,7 +240,7 @@ Section function.
     - rewrite /fn_ret_prop /set_temp_opt /bind_ret; iIntros "H !>"; iFrame.
       iDestruct ("H" with "[//]") as (??) "(_ & HR & $)".
       iSplit; first done.
-      iPoseProof (down1_sep_up1 with "Hpost HR") as "H"; rewrite down1_sep; iApply (down1_mono with "H").
+      iPoseProof (down1_sep_up1 with "Hr HR") as "H"; rewrite -down1_sep; iApply (down1_mono with "H").
       iIntros "(Hpost & HR)".
       iSpecialize ("Hpost" $! None with "HR"); simpl.
       destruct i; simpl; rewrite -up1_objective.
@@ -289,9 +251,9 @@ Section function.
       iDestruct "H" as (?) "(? & H)"; iFrame.
       iDestruct ("H" with "[$]") as (??) "(Hretty & HR & $)".
       iSplit; first done.
-      iCombine ("HR Hretty") as "H"; iPoseProof (down1_sep_up1 with "Hpost H") as "H"; rewrite down1_sep.
+      iCombine ("HR Hretty") as "H"; iPoseProof (down1_sep_up1 with "Hr H") as "H"; rewrite -down1_sep.
       iApply (down1_mono with "H").
-      rewrite -up1_sep; iIntros "(Hpost & HR & Hretty)".
+      rewrite up1_sep; iIntros "(Hpost & HR & Hretty)".
       iSpecialize ("Hpost" $! ret with "HR").
       destruct i; simpl.
       * iDestruct "Hpost" as "($ & H)"; iIntros "?"; by iApply ("H" with "[$]").

@@ -10,6 +10,7 @@ Require Import VST.veric.tycontext.
 Require Import VST.veric.valid_pointer.
 Require Import VST.veric.expr.
 Require Import VST.veric.simple_mapsto.
+Require Export VST.veric.stack_level.
 Require Import VST.veric.env.
 
 Section mpred.
@@ -69,33 +70,6 @@ Proof.
     + subst; rewrite lookup_insert //.
     + rewrite lookup_insert_ne //.
       rewrite PTree.gro // in Hrem.
-Qed.
-
-Definition stack_level (n : nat) : assert := <affine> monPred_in(I := stack_index) n.
-
-Lemma stack_level_intro : ⊢ ∃ n, stack_level n.
-Proof.
-  by iDestruct (monPred_in_intro emp with "[]") as (?) "($ & _)".
-Qed.
-
-Lemma stack_level_elim : forall (P : assert) n, ⊢ stack_level n -∗ ⎡P n⎤ -∗ P.
-Proof.
-  intros; iIntros "#? H".
-  iApply bi.impl_elim_r; iSplit; first iApply "H".
-  by iApply monPred_in_elim.
-Qed.
-
-Lemma stack_level_embed : forall n (P : assert), ⊢ stack_level n -∗ P -∗ ⎡P n⎤.
-Proof.
-  split => ?; rewrite /stack_level; monPred.unseal.
-  iIntros "_" (? [=]); rewrite monPred_at_affinely /=.
-  iIntros ([=] ? [=]); subst; auto.
-Qed.
-
-Lemma stack_level_eq : forall a b, ⊢ stack_level a -∗ stack_level b -∗ ⌜a = b⌝.
-Proof.
-  split => n; rewrite /stack_level; monPred.unseal; setoid_rewrite monPred_at_affinely; simpl.
-  iIntros; iPureIntro; congruence.
 Qed.
 
 Definition env_matches (rho : environ) (ge : genv) (ve : env) (te : temp_env) :=

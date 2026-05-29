@@ -151,6 +151,8 @@ Ltac liTrace_hook info ::= add_case_distinction_info info.
 
 Ltac liExtensible_to_i2p_hook P bind cont ::=
   lazymatch P with
+  | <obj> _ => iModIntro
+  | up1 _ => iModIntro
   | typed_value ?cty ?v ?T =>
       (* One could introduce more let-bindings as follows, but too
       many let-bindings seem to hurt performance. *)

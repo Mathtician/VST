@@ -1630,36 +1630,6 @@ Proof.
   iApply ("IHel" with "Hm Hblocks").
 Qed.
 
-Definition up1 (P : assert) : assert := assert_of (λ n, P (S n)).
-Definition down1 (P : assert) : assert := assert_of (λ n, match n with | S n' => P n' | O => False end).
-
-Global Instance up1_nonexpansive : NonExpansive up1.
-Proof. split => ? /=. apply H. Qed.
-
-Global Instance down1_nonexpansive : NonExpansive down1.
-Proof. split => l /=.
-  destruct l; first done. apply H. Qed.
-
-Global Instance up1_proper : Proper (equiv ==> equiv) up1.
-Proof. split => ? /=. apply H. Qed.
-
-Global Instance down1_proper : Proper (equiv ==> equiv) down1.
-Proof. split => l /=.
-  destruct l; first done. apply H. Qed.
-
-Lemma up1_mono : forall P Q, (P ⊢ Q) -> up1 P ⊢ up1 Q.
-Proof. split => n; apply H. Qed.
-
-Lemma down1_mono : forall P Q, (P ⊢ Q) -> down1 P ⊢ down1 Q.
-Proof. split => n /=. destruct n; first done. apply H. Qed.
-
-Lemma up1_plain : forall P, Plain P -> Absorbing P -> up1 P ⊣⊢ P.
-Proof.
-  intros.
-  rewrite -(plain_plainly P).
-  split => n /=; rewrite !monPred_at_plainly //.
-Qed.
-
 Lemma env_to_environ_alloc' : forall ρ ve te n n', n' ≠ n → env_to_environ (alloc_vars ve te n ρ) n' = env_to_environ ρ n'.
 Proof.
   intros; rewrite /env_to_environ /alloc_vars lookup_insert_ne //.

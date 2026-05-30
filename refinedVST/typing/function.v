@@ -48,22 +48,20 @@ Section function.
 
   Context (Espec : ext_spec OK_ty) (ge : Genv.t Clight.fundef Ctypes.type).
 
-  (* Do we need a ty_own_temp, ty_own_var, etc. as well? *)
   Definition typed_var_block (idt: ident * Ctypes.type): assert :=
   ⌜(Ctypes.sizeof (snd idt) <= Ptrofs.max_unsigned)%Z⌝ ∧
-  ∃ b, lvar (fst idt) (snd idt) b ∗ (b, Ptrofs.zero) ◁ₗ uninit (snd idt).
+  idt.1 ◁ₗᵥ|idt.2| uninit (idt.2).
 
-  Definition typed_stackframe (f: Clight.function) (lv: list val) : assert :=
+  Definition typed_stackframe (f: Clight.function) (tys: list type) : assert :=
     ([∗ list] idt ∈ fn_vars f, typed_var_block idt) ∗
-    ([∗ list] idt;v ∈ (Clight.fn_params f ++ fn_temps f);lv, temp (fst idt) v).
+    ([∗ list] idt;ty ∈ Clight.fn_params f;tys, idt.1 ◁ₜ|idt.2| ty) ∗
+    ([∗ list] idt ∈ fn_temps f, idt.1 ◁ₜ|idt.2| uninit (val_type idt.2)).
 
   Definition typed_function (fn : function) (fp : A → fn_params) : assert :=
     (<affine> ∀ x, <affine> ⌜Forall2 (λ (ty : type) '(_, p), ty.(ty_has_op_type) p MCNone) (fp x).(fp_atys) (Clight.fn_params fn)⌝ ∗
-      □ <obj> ∀ (lsa : vec val (length (fp x).(fp_atys))),
-         (down1 ([∗ list] v;'(cty,t)∈lsa;zip (map snd (Clight.fn_params fn)) (fp x).(fp_atys), (v ◁ᵥₐₗ|cty| t)) ∗
-          typed_stackframe fn (lsa ++ repeat Vundef (length fn.(fn_temps))) ∗
-          down1 (fp x).(fp_Pa)) -∗
-          typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr))
+      □ <obj>
+         ((typed_stackframe fn (fp x).(fp_atys) ∗ down1 (fp x).(fp_Pa)) -∗
+          typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr)))
     )%I.
 
   Global Instance typed_function_persistent fn fp : Persistent (typed_function fn fp) := _.
@@ -73,25 +71,38 @@ Section function.
   Global Instance leibniz_val : Equiv val := equivL.
 
   Import EqNotations.
+
+ Lemma typed_stackframe_equiv fn1 fn2 tys1 tys2 :
+    fn1 = fn2 → tys1 ≡ tys2 →
+    typed_stackframe fn1 tys1 ⊢ typed_stackframe fn2 tys2.
+  Proof.
+    intros -> Htys; rewrite /typed_stackframe; do 2 f_equiv.
+    apply bi.equiv_entails_1_1, big_sepL2_proper_2; [try done..|].
+    intros ??????? Hy. inv Hy.
+    move: Htys => /list_equiv_lookup Htys.
+    intros Hty1 Hty2.
+    have := Htys k. rewrite Hty1 Hty2 => /(Some_equiv_eq _ _)[? ?] -> //.
+  Qed.
+
   Lemma typed_function_equiv fn1 fn2 (fp1 fp2 : A → _) :
     fn1 = fn2 →
-    ((∀ x, Forall2 (λ ty '(_, p), ty_has_op_type ty p MCNone) (fp_atys (fp2 x)) (Clight.fn_params fn2)) →
     (* TODO: replace the following with an equivalence relation for fn_params? *)
-    (∀ x, ∃ Heq : (fp1 x).(fp_rtype) = (fp2 x).(fp_rtype),
+    ((∀ x, Forall2 (λ ty '(_, p), ty_has_op_type ty p MCNone) (fp_atys (fp2 x)) (Clight.fn_params fn2)) →
+     (∀ x, ∃ Heq : (fp1 x).(fp_rtype) = (fp2 x).(fp_rtype),
           (fp1 x).(fp_atys) ≡ (fp2 x).(fp_atys) ∧
           (fp1 x).(fp_Pa) ≡ (fp2 x).(fp_Pa) ∧
           (∀ y, ((fp1 x).(fp_fr) y).(fr_rty) ≡ ((fp2 x).(fp_fr) (rew [λ x : Type, x] Heq in y)).(fr_rty) ∧
                 ((fp1 x).(fp_fr) y).(fr_R) ≡ ((fp2 x).(fp_fr) (rew [λ x : Type, x] Heq in y)).(fr_R))) →
     typed_function fn1 fp1 ⊢ typed_function fn2 fp2)%type.
   Proof.
-    iIntros (-> Hly Hfn) "HT".
+    iIntros (-> ? Hfn) "HT".
     rewrite /typed_function.
-    iIntros "!>" (x). iDestruct ("HT" $! x) as ([Hlen Hall]%Forall2_same_length_lookup) "#HT".
+    iIntros "!>" (x).
+    iDestruct ("HT" $! x) as ([Hlen Hall]%Forall2_same_length_lookup) "#HT".
     have [Heq [Hatys [HPa Hret]]] := Hfn x.
     iSplit; [done|].
-    iIntros "!> !>" (?) "(Ha & Hstack)". rewrite monPred_objectively_elim -HPa.
-    have [|lsa' Hlsa]:= vec_cast _ lsa (length (fp_atys (fp1 x))). { by rewrite Hatys. }
-    iApply typed_stmt_mono; last iApply ("HT" $! lsa'); simpl; try done.
+    iIntros "!> !> (Ha & Hstack)". rewrite monPred_objectively_elim -HPa.
+    iApply typed_stmt_mono; last iApply ("HT"); simpl; try done.
     - iIntros "HR Hty".
       iDestruct ("HR" with "Hty") as (? y) "[?[??]]".
       have [-> ->]:= Hret y.
@@ -102,24 +113,15 @@ Section function.
       have [-> ->]:= Hret y.
       iSplit => //.
       iExists (rew [λ x : Type, x] Heq in y). iFrame.
-    - iFrame. rewrite Hlsa; iFrame.
-      iApply (down1_mono with "Ha").
-      apply bi.equiv_entails_1_1, big_sepL2_proper_2; [try done..|].
-      { rewrite Hatys //. }
-      intros ??????? Hy. inv Hy.
-      move: Hatys => /list_equiv_lookup Hatys.
-      intros (? & ? & -> & Hty2 & Haty2)%lookup_zip_with_Some (? & ? & -> & Hty1 & Haty1)%lookup_zip_with_Some.
-      rewrite Hty2 in Hty1; inv Hty1.
-      have := Hatys k. rewrite Haty1 Haty2=> /(Some_equiv_eq _ _)[?[? [? Heqv]]] [_ ?].
-      by repeat f_equiv.
+    - iFrame.
+      by iApply typed_stackframe_equiv.
   Qed.
 
   Lemma prove_typed_function P `{!Persistent P} `{!Affine P} fn fp :
     (forall x, Forall2 (λ (ty : type) '(_, p), ty.(ty_has_op_type) p MCNone) (fp x).(fp_atys) (Clight.fn_params fn) ∧
-     forall (lsa : vec val (length (fp x).(fp_atys))), P -∗ <obj> ((down1 ([∗ list] v;'(cty,t)∈lsa;zip (map snd (Clight.fn_params fn)) (fp x).(fp_atys), (v ◁ᵥₐₗ|cty| t)) ∗
-          typed_stackframe fn (lsa ++ repeat Vundef (length fn.(fn_temps))) ∗
+     (P -∗ <obj> ((typed_stackframe fn (fp x).(fp_atys) ∗
           down1 (fp x).(fp_Pa)) -∗
-          typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr)))) →
+          typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr))))) →
     P ⊢ typed_function fn fp.
   Proof.
     intros; iIntros "#P".
@@ -128,7 +130,6 @@ Section function.
     destruct (H x) as (? & Hty).
     iSplit => //.
     iIntros "!>".
-    rewrite monPred_objectively_forall; iIntros (lsa).
     by iApply Hty.
   Qed.
     
@@ -184,24 +185,57 @@ Section function.
 
   Opaque simple_mapsto.memory_block.
 
-  Lemma stackframe_of_typed : forall f lv
+  Lemma type_temp_list xs vs ctys tys : length ctys = length tys →
+    ([∗ list] x;v ∈ xs;vs, temp x v) -∗
+    ([∗ list] v;'(cty, ty) ∈ vs;zip ctys tys, v ◁ᵥₐₗ|cty| ty) -∗
+    [∗ list] a;ty ∈ zip xs ctys;tys, a.1 ◁ₜ|a.2| ty.
+  Proof.
+    generalize dependent tys; generalize dependent ctys; generalize dependent vs; induction xs; intros.
+    - iIntros "Hxs"; iDestruct (big_sepL2_nil_inv_l with "Hxs") as %->.
+      iIntros "Hvs"; iDestruct (big_sepL2_nil_inv_l with "Hvs") as %Heq.
+      by destruct ctys, tys.
+    - iIntros "Hxs"; iDestruct (big_sepL2_cons_inv_l with "Hxs") as (?? ->) "(Hx & Hxs)".
+      iIntros "Hvs"; iDestruct (big_sepL2_cons_inv_l with "Hvs") as ((?, ?) ? Heq) "(Hv & Hvs)".
+      apply zip_with_cons_inv in Heq as (? & ? & ? & ? & [=] & ? & ? & ?); subst; simpl; iFrame.
+      inv H.
+      by iApply (IHxs with "Hxs Hvs").
+  Qed.
+
+  Lemma stackframe_of_typed : forall f lv tys
     (Hcomplete : Forall (λ it, composite_compute.complete_legal_cosu_type it.2 = true) (fn_vars f))
-    (Halign : Forall (λ it, align_mem.LegalAlignasFacts.LegalAlignasDefs.is_aligned cenv_cs ha_env_cs la_env_cs it.2 0 = true) (fn_vars f)),
-    stackframe_of0' cenv_cs f lv ⊢ typed_stackframe f lv.
+    (Halign : Forall (λ it, align_mem.LegalAlignasFacts.LegalAlignasDefs.is_aligned cenv_cs ha_env_cs la_env_cs it.2 0 = true) (fn_vars f))
+    (Hlen : length (Clight.fn_params f) = length tys),
+    stackframe_of0' cenv_cs f (lv ++ repeat Vundef (length (fn_temps f))) -∗
+    ([∗ list] v;'(cty,ty) ∈ lv;zip (map snd (Clight.fn_params f)) tys, v ◁ᵥₐₗ|cty| ty) -∗
+    typed_stackframe f tys.
   Proof.
     intros; rewrite /stackframe_of0' /typed_stackframe.
-    iIntros "(H & $)".
-    iApply (big_sepL_mono with "H"); intros ?? H%elem_of_list_lookup_2.
-    rewrite !Forall_forall in Hcomplete Halign.
-    specialize (Hcomplete _ H); specialize (Halign _ H).
-    rewrite /var_block0 /typed_var_block.
-    iIntros "(% & % & $ & H)"; iSplit; first done.
-    rewrite simple_mapsto.memory_block_weaken uninit_memory_block //; iFrame.
-    iPureIntro.
-    split3; simpl; auto.
-    change expr.sizeof with Ctypes.sizeof.
-    rewrite Z.add_0_l; split3; first rep_lia; last done.
-    apply la_env_cs_sound; auto.
+    iIntros "(H & Hts) Hparams"; iSplitL "H".
+    - iApply (big_sepL_mono with "H"); intros ?? H%elem_of_list_lookup_2.
+      rewrite !Forall_forall in Hcomplete Halign.
+      specialize (Hcomplete _ H); specialize (Halign _ H).
+      rewrite /var_block0 /typed_var_block.
+      iIntros "(% & % & $ & H)"; iSplit; first done.
+      rewrite simple_mapsto.memory_block_weaken uninit_memory_block //; iFrame.
+      iPureIntro.
+      split3; simpl; auto.
+      change expr.sizeof with Ctypes.sizeof.
+      rewrite Z.add_0_l; split3; first rep_lia; last done.
+      apply la_env_cs_sound; auto.
+    - iDestruct (big_sepL2_app_inv with "Hts") as "(Hpvs & Htvs)".
+      { rewrite repeat_length; auto. }
+      iSplitL "Hpvs Hparams".
+      + rewrite -(zip_fst_snd (Clight.fn_params f)).
+        iApply (type_temp_list with "[Hpvs] [Hparams]"); rewrite ?zip_fst_snd //.
+        { by rewrite length_fmap. }
+        rewrite big_sepL2_fmap_l //.
+      + rewrite -juicy_mem_lemmas.replicate_repeat big_sepL2_replicate_r //.
+        iApply (big_sepL_mono with "Htvs").
+        intros ? (?, ?) Hk => /=.
+        iIntros "$"; iPureIntro.
+        split => //.
+        apply tc_val_has_layout_val2; first apply val_type_by_value.
+        simple_if_tac; [done | apply tc_val'_Vundef].
   Qed.
 
   Transparent simple_mapsto.memory_block.
@@ -209,7 +243,7 @@ Section function.
   Lemma type_call_fnptr l i v vl ctys `{!TCEq (length vl) (length ctys)}
     retty cc tys fp T :
     (([∗ list] v;'(cty,ty)∈vl; zip ctys tys, v ◁ᵥₐₗ|cty| ty) -∗ ∃ x,
-      ([∗ list] v;'(cty,ty)∈vl; zip ctys (fp x).(fp_atys), v ◁ᵥₐₗ|cty| ty) ∗
+      ⇑ ([∗ list] v;'(cty,ty)∈vl; zip ctys (fp x).(fp_atys), v ◁ᵥₐₗ|cty| ty) ∗
       (fp x).(fp_Pa) ∗ ∀ v x',
       up1 ((fp x).(fp_fr) x').(fr_R) -∗
       set_temp_opt i v (up1 (opt_ty_own_val retty ((fp x).(fp_fr) x').(fr_rty) v) -∗
@@ -231,10 +265,10 @@ Section function.
     iModIntro.
     iIntros "Hret Hstack !>".
     pose proof (Forall2_length Hl) as Hlena.
-    rewrite Hlena -Hlen monPred_objectively_elim.
-    iSpecialize ("Hfn" $! (Vector.of_list vl) with "[Hvl $HPa Hstack]").
+    rewrite monPred_objectively_elim.
+    iSpecialize ("Hfn" with "[Hvl $HPa Hstack]").
     { destruct l, He as (_ & _ & _ & _ & _ & _ & ? & ?).
-      rewrite vec_to_list_to_vec stackframe_of_typed //; iFrame. }
+      by iApply (stackframe_of_typed with "Hstack Hvl"). }
     iApply wp_strong_mono; iFrame "Hfn"; simpl.
     iSplit.
     - rewrite /fn_ret_prop /set_temp_opt /bind_ret; iIntros "H !>"; iFrame.

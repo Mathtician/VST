@@ -766,6 +766,21 @@ Notation "l `at_type` ty" := (with_refinement ty <$> l) (at level 50) : bi_scope
 (* Must be an Hint Extern instead of an Instance since simple apply is not able to apply the instance. *)
 Global Hint Extern 1 (AssumeInj (=) (=) (with_refinement _)) => exact: I : typeclass_instances.
 
+Require Import VST.veric.env.
+
+(*** Variables *)
+Section vars.
+  Context `{!typeG OK_ty Σ} {cs : compspecs}.
+
+  Definition ty_own_temp cty ty x := ∃ v, temp x v ∗ v ◁ᵥₐₗ|cty| ty.
+  Definition ty_own_lvar cty ty x := ∃ b, lvar x cty b ∗ (b, Ptrofs.zero) ◁ₗ ty.
+  Definition ty_own_gvar ty x := ∃ b, ⎡gvar x b⎤ ∗ (b, Ptrofs.zero) ◁ₗ ty.
+
+End vars.
+
+Notation "x ◁ₜ| cty | ty" := (ty_own_temp cty ty x) (at level 15) : bi_scope.
+Notation "x ◁ₗᵥ| cty | ty" := (ty_own_lvar cty ty x) (at level 15) : bi_scope.
+
 (*** Monotonicity *)
 Section mono.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
@@ -839,6 +854,21 @@ Section mono.
   Proof. intros ?? EQ ??->. apply EQ. Qed.
   Global Instance ty_own_val_at_proper cty: Proper ((≡) ==> eq ==> (≡)) (ty_own_val_at cty).
   Proof. intros ?? EQ ??->. apply EQ. Qed.
+
+  Global Instance ty_own_temp_le cty: Proper ((⊑) ==> eq ==> (⊢)) (ty_own_temp cty).
+  Proof. intros ?? EQ ??->. rewrite /ty_own_temp; by repeat f_equiv. Qed.
+  Global Instance ty_own_temp_proper cty: Proper ((≡) ==> eq ==> (≡)) (ty_own_temp cty).
+  Proof. intros ?? EQ ??->. rewrite /ty_own_temp; by repeat f_equiv. Qed.
+
+  Global Instance ty_own_lvar_le cty: Proper ((⊑) ==> eq ==> (⊢)) (ty_own_lvar cty).
+  Proof. intros ?? EQ ??->. rewrite /ty_own_lvar; by repeat f_equiv. Qed.
+  Global Instance ty_own_lvar_proper cty: Proper ((≡) ==> eq ==> (≡)) (ty_own_lvar cty).
+  Proof. intros ?? EQ ??->. rewrite /ty_own_lvar; by repeat f_equiv. Qed.
+
+  Global Instance ty_own_gvar_le: Proper ((⊑) ==> eq ==> (⊢)) (ty_own_gvar).
+  Proof. intros ?? EQ ??->. rewrite /ty_own_gvar; by repeat f_equiv. Qed.
+  Global Instance ty_own_gvar_proper: Proper ((≡) ==> eq ==> (≡)) (ty_own_gvar).
+  Proof. intros ?? EQ ??->. rewrite /ty_own_gvar; by repeat f_equiv. Qed.
 
   Lemma ty_of_rty_le A rty1 rty2 :
     (∀ x : A, (x @ rty1)%I ⊑ (x @ rty2)%I) →

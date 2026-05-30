@@ -390,9 +390,6 @@ Ltac liObj :=
     iModIntro
   end.
 
-Arguments ty_own_var /.
-Arguments ty_own_var_uninit /.
-  
 (* This does everything *)
 Ltac liRStep :=
   liEnsureInvariant;

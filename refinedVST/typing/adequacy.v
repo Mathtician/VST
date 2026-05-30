@@ -71,7 +71,7 @@ Ltac adequacy_solve_typed_function lemma unfold_tac :=
 
 (* export to base triples *)
 Definition fn_params_pre `{!VSTGS OK_ty Σ} {cs : compspecs} {A} fn fp (x : @dtfr Σ A) lsa : assert :=
-  down1 ([∗ list] v;'(cty, t) ∈ lsa;zip (map snd (fn_params fn)) (fp_atys (fp x)), v ◁ᵥₐₗ| cty | t) ∗ down1 (fp_Pa (fp x)).
+  ([∗ list] v;'(cty, t) ∈ lsa;zip (map snd (fn_params fn)) (fp_atys (fp x)), v ◁ᵥₐₗ| cty | t) ∗ down1 (fp_Pa (fp x)).
 
 Definition fn_params_post `{!VSTGS OK_ty Σ} {cs : compspecs} {A} fn fp (x : @dtfr Σ A) v : assert :=
   ∃ y, opt_ty_own_val (fn_return fn) ((fp x).(fp_fr) y).(fr_rty) v ∗ ((fp x).(fp_fr) y).(fr_R).
@@ -82,15 +82,15 @@ Lemma typed_function_triple : forall `{!VSTGS OK_ty Σ} {cs : compspecs} {A} Esp
   typed_function Espec ge f fp ⊢ ∀ x : dtfr A, fun_triple Espec (Build_genv ge cenv_cs) (fn_params_pre f fp x) f (fn_params_post f fp x).
 Proof.
   rewrite /fun_triple /fn_params_pre /=; intros.
-  iIntros "#H" (?) "!> %% (Hargs & HP) H0 Hstack"; rewrite (stackframe_of_typed(typeG0 := VST_typeG)) //.
+  iIntros "#H" (?) "!> %% (Hargs & HP) H0 Hstack".
   iApply wp_strong_mono.
   iSplitL "H0". 2: {
     iDestruct ("H" $! x) as "(%Htys & #Hf)".
     pose proof (tc_vals_length _ _ H) as Hlen; rewrite map_length in Hlen.
-    apply Forall2_length in Htys as ->; rewrite Hlen.
+    apply Forall2_length in Htys.
     rewrite monPred_objectively_elim.
-    iApply ("Hf" $! (Vector.of_list args)).
-    rewrite vec_to_list_to_vec; iFrame. }
+    iApply "Hf"; iFrame.
+    by iApply (stackframe_of_typed(typeG0 := TypeG _ _ VSTGS0) with "Hstack Hargs"). }
   rewrite /= /Clight_seplog.bind_ret; iSplit.
   - rewrite /fn_params_post /=.
     iIntros "Hpost !>"; iFrame.

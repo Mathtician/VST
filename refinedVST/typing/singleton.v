@@ -32,10 +32,14 @@ Section value.
     valinject cty v1 = valinject cty v2 → v1 = v2.
   Proof. by destruct cty. Qed.
 
-  Global Instance value_defined ot v `{!TCDone (type_is_by_value (val_type ot) = true)} `{!TCDone (v ≠ Vundef)}: DefinedTy ot (value ot v).
+  Lemma val_type_by_value t: type_is_by_value (val_type t) = true.
+  Proof. by destruct t. Qed.
+  
+  Global Instance value_defined ot v `{!TCDone (v ≠ Vundef)}: DefinedTy ot (value ot v).
   Proof.
     iIntros (? (_ & ? & _)).
-    by apply valinject_inj in H as ->.
+    apply valinject_inj in H as ->; try done.
+    apply val_type_by_value.
   Qed.
 
   Lemma value_simplify ot v p T:

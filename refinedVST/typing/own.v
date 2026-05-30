@@ -208,30 +208,31 @@ Section own.
   Definition type_offset_of_sub_inst := [instance type_offset_of_sub].
   Global Existing Instance type_offset_of_sub_inst. *)
 
-  (* We could probably avoid the case analysis and generalize this rule if we had
-     a ty_own_var and temps were associated with types. For now, there's a degree of
-    separation, so we need to use the value to guess what to look for. *)
-  Lemma type_tempvar f _x cty T:
-    find_in_context (FindTemp _x) (λ v, env.temp _x v -∗
-      if is_tptr cty then ∃ l, <affine> ⌜v = adr2val l⌝ ∗ find_in_context (FindLoc l) (λ '(β, ty),
-          T v (ty_of_rty (frac_ptr β ty))) (* doesn't allow for null *)
-      else let int_ty := match val_to_Z v cty with Some n => n | _ => 0 end @ int.int cty in
-          v ◁ᵥₐₗ|cty| int_ty ∗ T v int_ty)
-    ⊢ typed_val_expr ge f (Etempvar _x cty) T.
+  Lemma type_lvar_expr f x cty T:
+    match access_mode cty with By_reference | By_copy => True | _ => False end →
+    find_in_context (FindLvar cty x) (λ ty, ∀ b, env.lvar x cty b -∗ T (adr2val (b, Ptrofs.zero)) ((b, Ptrofs.zero) @ frac_ptr Own ty))
+    ⊢ typed_val_expr ge f (Evar x cty) T.
   Proof.
-    rewrite /find_in_context. simpl.
-    iIntros "(%b & Hx & HT)" (Φ) "HΦ".
-    iApply wp_tempvar_local.
-    iFrame.
-    iIntros "Hx".
-    iSpecialize ("HT" with "Hx"); destruct (is_tptr cty) eqn: Hptr.
-    - iDestruct "HT" as (? -> (?,?)) "(Hv & HT)".
-      iApply ("HΦ" with "[Hv] [$]").
-      iExists l; iFrame.
-      rewrite repinject_valinject //.
-      by destruct cty.
-    - iDestruct "HT" as "(Hv & HT)".
-      by iApply ("HΦ" with "[$]").
+    rewrite /find_in_context /=.
+    iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
+    iIntros (Φ) "HΦ".
+    rewrite -wp_expr_ptr // -wp_var_local; iFrame.
+    iIntros; iApply ("HΦ" with "[Hv]"); last by iApply "HT".
+    simpl; iFrame.
+    rewrite repinject_valinject //.
+    apply val_type_by_value.
+  Qed.
+
+  (* change to match type_lvar? *)
+  Lemma type_gvar_expr f x cty b ty T:
+    match access_mode cty with By_reference | By_copy => True | _ => False end →
+    ~In x (map fst (fn_vars f)) → Genv.find_symbol ge x = Some b →
+    adr2val (b, Ptrofs.zero) ◁ᵥₐₗ|cty| ty ∗ T (adr2val (b, Ptrofs.zero)) ty
+    ⊢ typed_val_expr ge f (Evar x cty) T.
+  Proof.
+    intros; iIntros "(Hgvar & HT)" (Φ) "HΦ".
+    rewrite -wp_expr_ptr // -wp_var_global0 //; iFrame.
+    by iApply ("HΦ" with "Hgvar").
   Qed.
 
   Lemma type_cast_ptr_ptr f e ot T:

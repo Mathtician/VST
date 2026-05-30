@@ -273,7 +273,7 @@ Ltac liRStmt :=
       let s' := s in
       lazymatch s' with
       | Sassign _ _ => notypeclasses refine (tac_fast_apply (type_assign _ _ _ _ _ _ ) _); [done..|]
-      | Sset _ _ => notypeclasses refine (tac_fast_apply (type_set _ _ _ _ _ _ _) _)
+      | Sset _ _ => notypeclasses refine (tac_fast_apply (type_set _ _ _ _ _ _ _ _) _)
       | Ssequence _ _ => notypeclasses refine (tac_fast_apply (type_seq _ _ _ _ _ _) _)
       | Sreturn $ Some _ => notypeclasses refine (tac_fast_apply (type_return_some _ _ _ _ _) _)
       | Sreturn None => notypeclasses refine (tac_fast_apply (type_return_none _ _ _ _ _) _)
@@ -457,8 +457,7 @@ Tactic Notation "start_function" constr(fnname) "(" simple_intropattern(x) ")" :
   iStartProof; repeat iIntros "#?"; iStopProof;
   apply prove_typed_function; [apply _..|];
   intros x;
-  split; [simpl; by [repeat constructor; try econstructor] || fail "in" fnname "argument types don't match layout of arguments" |];
-  let lsa := fresh "lsa" in intros lsa; inv_vec lsa.
+  split; [simpl; by [repeat constructor; try econstructor] || fail "in" fnname "argument types don't match layout of arguments" |].
 
 Tactic Notation "start_function2" :=
   iIntros "#?"; rewrite /typed_stackframe.
@@ -476,8 +475,8 @@ Ltac type_function_end :=
   try done
   end.
 
-Tactic Notation "prepare_parameters" "(" ident_list(i) ")" :=
-  revert i; repeat liForall.
+(*Tactic Notation "prepare_parameters" "(" ident_list(i) ")" :=
+  revert i; repeat liForall.*)
 
 (*Ltac liRSplitBlocksIntro :=
   repeat (

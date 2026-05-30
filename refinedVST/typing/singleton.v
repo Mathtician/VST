@@ -159,6 +159,24 @@ Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!Def
   Definition type_write_own_inst := [instance type_write_own].
   Global Existing Instance type_write_own_inst | 50.
 
+  (* Is this the right rule? *)
+  Lemma type_tempvar ge f x cty T:
+    find_in_context (FindTemp cty x) (λ ty, <affine> ⌜ty.(ty_has_op_type) (val_type cty) MCNone⌝ ∗
+      (x ◁ₜ|cty| ty -∗ ∀ v, T v (value (val_type cty) v)))
+    ⊢ typed_val_expr ge f (Etempvar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (ty) "[(% & ? & Hv) (% & HT)]".
+    iDestruct (ty_size_eq with "Hv") as %?; first done.
+    iIntros (Φ) "HΦ".
+    iApply wp_tempvar_local.
+    iFrame.
+    iIntros "Hx".
+    iSpecialize ("HT" with "[$Hx $Hv]").
+    iApply "HΦ"; last done.
+    iPureIntro; done.
+  Qed.
+
 End value.
 Global Typeclasses Opaque value.
 Notation "value< ot , v >" := (value ot v) (only printing, format "'value<' ot ',' v '>'") : printing_sugar.
@@ -358,6 +376,48 @@ Section place.
   Qed.
   Definition typed_write_end_simpl_inst := [instance typed_write_end_simpl].
   Global Existing Instance typed_write_end_simpl_inst | 1000.
+
+  Lemma type_var_local ge f x β cty (T: address -> own_state -> type -> assert) :
+    find_in_context (FindLvar cty x) (λ ty, x ◁ₗᵥ|cty| ty -∗ ∀ l, T l β (place l))
+    ⊢ typed_lvalue ge f β (Evar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
+    iIntros (Φ) "HΦ".
+    iApply wp_var_local.
+    iFrame.
+    iIntros "Hx".
+    iSpecialize ("HT" with "[$Hx $Hv]").
+    iApply "HΦ"; last done.
+    iPureIntro; done.
+  Qed.
+
+  Lemma type_var_global ge f x β cty (T: address -> own_state -> type -> assert) :
+    ~In x (map fst (fn_vars f)) →
+    find_in_context (FindGvar x) (λ ty, ty_own_gvar ty x -∗ ∀ l, T l β (place l))
+    ⊢ typed_lvalue ge f β (Evar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
+    iIntros (Φ) "HΦ".
+    iApply wp_var_global => //.
+    iFrame.
+    iIntros "Hx".
+    iSpecialize ("HT" with "[$Hx $Hv]").
+    iApply "HΦ"; last done.
+    iPureIntro; done.
+  Qed.
+
+  (*Lemma type_var_global0 ge f _x b β ty c_ty (T: address -> own_state -> type -> assert) :
+    ~In _x (map fst (fn_vars f)) → Genv.find_symbol ge _x = Some b →
+      (b, Ptrofs.zero) ◁ₗ{β} ty ∗
+      T (b, Ptrofs.zero) β ty
+    ⊢ typed_lvalue ge f β (Evar _x c_ty) T.
+  Proof.
+    intros; iIntros "(Hgvar & HT)" (Φ) "HΦ".
+    iApply (wp_var_global0 _ _ _); [done..|].
+    iApply ("HΦ" with "[$]"). done.
+  Qed.*)
 
 End place.
 Global Typeclasses Opaque place.

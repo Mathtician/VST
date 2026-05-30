@@ -284,9 +284,9 @@ Section uninit.
 
   Definition ty_own_var_uninit f x : assert :=
     match list_assoc x (f.(fn_params) ++ f.(fn_temps)) with
-    | Some cty => ∃ v, env.temp x v
+    | Some cty => x ◁ₜ|cty| (uninit cty)
     | None => match list_assoc x f.(fn_vars) with
-              | Some cty => ∃ b, env.lvar x cty b ∗ (b, Ptrofs.zero) ◁ₗ uninit cty
+              | Some cty => x ◁ₗᵥ|cty| uninit cty
               | None => False
               end
     end.

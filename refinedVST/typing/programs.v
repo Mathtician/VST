@@ -996,6 +996,8 @@ Definition FindTemp `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_
   {| fic_A := type; fic_Prop ty := x ◁ₜ|cty| ty; |}.
 Definition FindLvar `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_in_context_info assert :=
   {| fic_A := type; fic_Prop ty := x ◁ₗᵥ|cty| ty; |}.
+Definition FindGvar `{!typeG OK_ty Σ} {cs : compspecs} (x : ident) : @find_in_context_info assert :=
+  {| fic_A := type; fic_Prop ty := ty_own_gvar ty x; |}.
 Definition FindLoc `{!typeG OK_ty Σ} {cs : compspecs} (l : address) : @find_in_context_info assert :=
   {| fic_A := own_state * type; fic_Prop '(β, ty):= l ◁ₗ{β} ty; |}.
 Definition FindVal `{!typeG OK_ty Σ} {cs : compspecs} cty (v : val) : @find_in_context_info assert :=
@@ -1008,7 +1010,7 @@ Definition FindLocInBounds `{!typeG OK_ty Σ} (l : address) :=
   {| fic_A := assert; fic_Prop P := P |}.
 Definition FindAllocAlive `{!typeG OK_ty Σ} (l : address) :=
   {| fic_A := assert; fic_Prop P := P |}.
-Global Typeclasses Opaque FindTemp FindLvar FindLoc FindVal FindValP FindValOrLoc FindLocInBounds FindAllocAlive.
+Global Typeclasses Opaque FindTemp FindLvar FindGvar FindLoc FindVal FindValP FindValOrLoc FindLocInBounds FindAllocAlive.
 
 (** setup instance generation *)
 Ltac generate_i2p_instance_to_tc_hook arg c ::=
@@ -1043,6 +1045,16 @@ Fixpoint list_assoc {A B} `{!EqDecision A} a (l : list (A * B)) :=
 Section typing.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
+(* We may want to make more use of this. *)
+  Definition ty_own_var f x ty : assert :=
+    match list_assoc x (f.(fn_params) ++ f.(fn_temps)) with
+    | Some cty => x ◁ₜ|cty| ty
+    | None => match list_assoc x f.(fn_vars) with
+              | Some cty => x ◁ₗᵥ|cty| ty
+              | None => False
+              end
+    end.
+
   Lemma find_in_context_type_temp_id cty x T:
     (∃ ty, x ◁ₜ|cty| ty ∗ T ty)
     ⊢ find_in_context (FindTemp cty x) T.
@@ -1058,6 +1070,14 @@ Section typing.
   Definition find_in_context_type_lvar_id_inst :=
     [instance find_in_context_type_lvar_id with FICSyntactic].
   Global Existing Instance find_in_context_type_lvar_id_inst | 1.
+
+  Lemma find_in_context_type_gvar_id x T:
+    (∃ ty, ty_own_gvar ty x ∗ T ty)
+    ⊢ find_in_context (FindGvar x) T.
+  Proof. iDestruct 1 as (v) "[Hl HT]". iExists _ => /=. iFrame. Qed.
+  Definition find_in_context_type_gvar_id_inst :=
+    [instance find_in_context_type_gvar_id with FICSyntactic].
+  Global Existing Instance find_in_context_type_gvar_id_inst | 1.
 
   Lemma find_in_context_type_loc_id l T:
     (∃ β ty, l ◁ₗ{β} ty ∗ T (β, ty))
@@ -1161,6 +1181,8 @@ Section typing.
     := {| rt_fic := FindTemp cty i |}.
   Global Instance related_to_lvar A cty i ty : RelatedTo (λ x : A, i ◁ₗᵥ|cty| ty x)%I | 100
     := {| rt_fic := FindLvar cty i |}.
+  Global Instance related_to_gvar A i ty : RelatedTo (λ x : A, ty_own_gvar (ty x) i)%I | 100
+    := {| rt_fic := FindGvar i |}.
   Global Instance related_to_val A cty v ty : RelatedTo (λ x : A, (valinject cty v) ◁ᵥ|cty| ty x)%I | 100
     := {| rt_fic := FindValP v |}.
 (* FIXME
@@ -1362,6 +1384,12 @@ Section typing.
       ∃ x, exhale (<affine> ⌜ty2 x = ty1⌝); return T x.
   Proof. iIntros "[% [<- ?]] ?". iExists _. iFrame. Qed.
   Definition subsume_lvar_ex_inst := [instance subsume_lvar_ex].
+
+  Lemma subsume_gvar_ex A ty1 ty2 i T:
+    subsume (ty_own_gvar ty1 i) (λ x : A, ty_own_gvar (ty2 x) i) T :-
+      ∃ x, exhale (<affine> ⌜ty2 x = ty1⌝); return T x.
+  Proof. iIntros "[% [<- ?]] ?". iExists _. iFrame. Qed.
+  Definition subsume_gvar_ex_inst := [instance subsume_gvar_ex].
 
   Lemma subtype_var {A B} (ty : A → type) x y l β T:
     (∃ z, <affine> ⌜x = y z⌝ ∗ T z)
@@ -1880,61 +1908,6 @@ Section typing.
     iIntros "He" (Φ) "HΦ".
     iApply wp_unop_rule. iApply "He". iIntros (v ty) "Hv Hop".
     by iApply ("Hop" with "Hv").
-  Qed.
-
-  (* Is this right? *)
-  Lemma type_tempvar ge f x cty T:
-    find_in_context (FindTemp cty x) (λ ty, ∀ v, env.temp x v -∗ T v ty)
-    ⊢ typed_val_expr ge f (Etempvar x cty) T.
-  Proof.
-    rewrite /find_in_context /=.
-    iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
-    iIntros (Φ) "HΦ".
-    iApply wp_tempvar_local.
-    iFrame.
-    iIntros "Hx".
-    iApply ("HΦ" with "Hv").
-    by iApply "HT".
-  Qed.
-
-  Lemma type_var_local ge f x b β ty cty (T: address -> own_state -> type -> assert) :
-    env.lvar x cty b ∗
-    (env.lvar x cty b -∗
-      (b, Ptrofs.zero) ◁ₗ{β} ty ∗
-      T (b, Ptrofs.zero) β ty)
-    ⊢ typed_lvalue ge f β (Evar x cty) T.
-  Proof.
-    iIntros "(Hlvar & HT)" (Φ) "HΦ".
-    iApply (wp_var_local _ _ _).
-    iFrame.
-    iIntros "Hlvar"; iDestruct ("HT" with "Hlvar") as "[own_l HT]".
-    iApply ("HΦ" with "[$]"). done.
-  Qed.
-
-  Lemma type_var_global ge f _x b β ty c_ty (T: address -> own_state -> type -> assert) :
-    ~In _x (map fst (fn_vars f)) →
-    ⎡gvar _x b⎤ ∗
-    (⎡gvar _x b⎤ -∗
-      (b, Ptrofs.zero) ◁ₗ{β} ty ∗
-      T (b, Ptrofs.zero) β ty)
-    ⊢ typed_lvalue ge f β (Evar _x c_ty) T.
-  Proof.
-    intros; iIntros "(Hgvar & HT)" (Φ) "HΦ".
-    iApply (wp_var_global _ _ _); first done.
-    iFrame.
-    iIntros "Hlvar"; iDestruct ("HT" with "Hlvar") as "[own_l HT]".
-    iApply ("HΦ" with "[$]"). done.
-  Qed.
-
-  Lemma type_var_global0 ge f _x b β ty c_ty (T: address -> own_state -> type -> assert) :
-    ~In _x (map fst (fn_vars f)) → Genv.find_symbol ge _x = Some b →
-      (b, Ptrofs.zero) ◁ₗ{β} ty ∗
-      T (b, Ptrofs.zero) β ty
-    ⊢ typed_lvalue ge f β (Evar _x c_ty) T.
-  Proof.
-    intros; iIntros "(Hgvar & HT)" (Φ) "HΦ".
-    iApply (wp_var_global0 _ _ _); [done..|].
-    iApply ("HΦ" with "[$]"). done.
   Qed.
 
   Lemma type_call_syn Espec ge f T i ef es ctys retty cc:
@@ -2461,3 +2434,6 @@ Global Hint Extern 5 (Subsume (_ ◁ₜ|_| _) (λ _, _ ◁ₜ|_| _)%I) =>
 
 Global Hint Extern 5 (Subsume (_ ◁ₜ|_| _) (λ _, _ ◁ₜ|_| _)%I) =>
   (class_apply subsume_lvar_ex_inst) : typeclass_instances.
+
+Global Hint Extern 5 (Subsume (ty_own_gvar _ _) (λ _, ty_own_gvar _ _)%I) =>
+  (class_apply subsume_gvar_ex_inst) : typeclass_instances.

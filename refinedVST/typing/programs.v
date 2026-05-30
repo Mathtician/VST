@@ -539,11 +539,8 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
 
   Fixpoint find_place_ctx f (e : expr) : option ((list place_ectx_item → address → assert) → assert) :=
     match e with
-    | Etempvar _id cty =>
-        Some (λ T, ∃ v, env.temp _id v ∗ (env.temp _id v -∗ ∃ l, <affine> ⌜v = adr2val l⌝ ∗ T [] l))
-    | Evar _id cty => (* local or global *) Some (λ T, ∃ b, match In_dec ident_eq _id (map fst (fn_vars f)) with
-        | left _ => env.lvar _id cty b ∗ (env.lvar _id cty b -∗ T [] (b, Ptrofs.zero))
-        | right _ => ⎡gvar _id b⎤ ∗ (⎡gvar _id b⎤ -∗ T [] (b, Ptrofs.zero)) end)
+    | Etempvar _ cty => Some (λ T, typed_val_expr f e (λ v ty, v ◁ᵥₐₗ|cty| ty -∗ ∃ l, <affine> ⌜v = adr2val l⌝ ∗ T [] l)%I)
+    | Evar _ cty => Some (λ T, ∃ β, typed_lvalue f β e (λ l β ty, l ◁ₗ{β} ty -∗ T [] l)%I)
     | Ederef e cty => T' ← find_place_ctx f e; Some (λ T, T' (λ K l, T (if is_lvalue e then K ++ [DerefPCtx (typeof e)] else K) l))
     | Efield e m cty => T' ← find_place_ctx f e; Some (λ T, T' (λ K l, match typeof e with
         | Tstruct i _ => T (K ++ [GetMemberPCtx i m]) l | Tunion i _ => T (K ++ [GetMemberUnionPCtx i m]) l | _ => False end))
@@ -596,21 +593,12 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
     all: try match goal with
     |  H : context [IntoPlaceCtx _ _] |- _ => rename H into IH
     end; rewrite /wp_lvexpr /=.
-    - if_tac.
-      + iDestruct "HT" as "(%b & ? & H)".
-        iApply wp_var_local; iFrame; iIntros "?".
-        iDestruct ("H" with "[$]") as "H".
-        iDestruct ("HΦ'" with "[$]") as "HΦ'" => //.
-      + iDestruct "HT" as "(%b & ? & H)".
-        iApply wp_var_global; first done; iFrame; iIntros "?".
-        iDestruct ("H" with "[$]") as "H".
-        iDestruct ("HΦ'" with "[$]") as "HΦ'" => //.
-    - iDestruct "HT" as "(%v & temp_id & H)".
-      iApply wp_tempvar_local.
-      iFrame. iIntros "?".
-      iDestruct ("H" with "[$]") as (l ->) "H".
-      iDestruct ("HΦ'" with "[$]") as "HΦ'" => //.
-      destruct l; by iFrame.
+    - iDestruct "HT" as (?) "HT".
+      iApply "HT"; iIntros (??) "? H".
+      by iApply ("HΦ'" $! []); iApply "H".
+    - iApply "HT"; iIntros (??) "? H".
+      iDestruct ("H" with "[$]") as (?) "($ & ?)".
+      by iApply ("HΦ'" $! []).
     - rewrite -wp_deref.
       iDestruct (IH with "HT") as "HT" => //.
       instantiate (1 := if is_lvalue e then _ else _).

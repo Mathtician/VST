@@ -162,7 +162,7 @@ Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!Def
   (* Is this the right rule? *)
   Lemma type_tempvar ge f x cty T:
     find_in_context (FindTemp cty x) (λ ty, <affine> ⌜ty.(ty_has_op_type) (val_type cty) MCNone⌝ ∗
-      (x ◁ₜ|cty| ty -∗ ∀ v, T v (value (val_type cty) v)))
+      (∀ v, x ◁ₜ|cty| value (val_type cty) v -∗ T v ty))
     ⊢ typed_val_expr ge f (Etempvar x cty) T.
   Proof.
     rewrite /find_in_context /=.
@@ -172,9 +172,9 @@ Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!Def
     iApply wp_tempvar_local.
     iFrame.
     iIntros "Hx".
-    iSpecialize ("HT" with "[$Hx $Hv]").
-    iApply "HΦ"; last done.
-    iPureIntro; done.
+    iSpecialize ("HT" with "[$Hx]").
+    { by iPureIntro. }
+    iApply ("HΦ" with "Hv HT").
   Qed.
 
 End value.

@@ -723,6 +723,10 @@ Section coq_tactics.
     envs_entails Δ P → envs_entails Δ (emp ∗ P).
   Proof. apply tac_fast_apply. by apply bi.emp_sep_1. Qed.
 
+  Lemma tac_sep_affine_True Δ (P : prop) :
+    envs_entails Δ P → envs_entails Δ (<affine> True ∗ P).
+  Proof. apply tac_fast_apply. rewrite bi.affinely_True_emp bi.emp_sep //. Qed.
+
   Lemma tac_sep_exist_assoc {A} Δ (Φ : A → prop) (Q : prop):
     envs_entails Δ (∃ a : A, Φ a ∗ Q) → envs_entails Δ ((∃ a : A, Φ a) ∗ Q).
   Proof. by rewrite bi.sep_exist_r. Qed.
@@ -784,6 +788,7 @@ Ltac liSep :=
     | bi_sep _ _ => notypeclasses refine (tac_sep_sep_assoc _ _ _ _ _)
     | bi_exist _ => notypeclasses refine (tac_sep_exist_assoc _ _ _ _)
     | bi_emp => notypeclasses refine (tac_sep_emp _ _ _)
+    | (<affine> True)%I => notypeclasses refine (tac_sep_affine_True _ _ _)
     | (⌜_⌝)%I => fail "handled by liSideCond"
     | (□ ?P)%I => notypeclasses refine (tac_do_intro_intuit_sep _ _ _ _ _)
     | match ?x with _ => _ end => fail "should not have match in sep"

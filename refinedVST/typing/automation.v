@@ -464,10 +464,10 @@ Tactic Notation "start_function" constr(fnname) "(" simple_intropattern(x) ")" :
 Tactic Notation "start_function2" :=
   iIntros "#?"; rewrite /typed_stackframe.
 
-Ltac type_function_end :=
-  match goal with |- envs_entails _ (∃ₗ _, stackframe_of1' _ _ _) =>
-  iExists (li_pair _ tt) => /=; liShow;
-  rewrite /stackframe_of0' /stackframe_of1'; cbn;
+(*Ltac type_function_end :=
+  match goal with |- envs_entails _ (typed_stackframe1 _) =>
+  (*iExists (li_pair _ tt) => /=; liShow;
+  rewrite /stackframe_of0' /stackframe_of1'; cbn;*)
   repeat match goal with
   | |- context [ [∗ list] _;_ ∈ (cons _ _); _ , _ ] =>
     setoid_rewrite big_sepL2_cons; iFrame
@@ -475,7 +475,9 @@ Ltac type_function_end :=
     setoid_rewrite big_sepL2_nil
    end;
   try done
-  end.
+  end.*)
+
+Ltac type_function_end := rewrite /typed_stackframe1 /=; repeat liRStep.
 
 (*Tactic Notation "prepare_parameters" "(" ident_list(i) ")" :=
   revert i; repeat liForall.*)

@@ -1091,21 +1091,13 @@ Section typing.
     [instance find_in_context_type_val_id with FICSyntactic].
   Global Existing Instance find_in_context_type_val_id_inst | 1.
 
-  Lemma find_in_context_type_val_P_id v (T:assert->assert):
-    (∃ cty ty, v ◁ᵥₐₗ|cty| ty ∗ T (v ◁ᵥₐₗ|cty| ty))
+  Lemma find_in_context_type_val_P_id cty v (T:assert->assert):
+    (∃ ty, v ◁ᵥₐₗ|cty| ty ∗ T (v ◁ᵥₐₗ|cty| ty))
     ⊢ find_in_context (FindValP v) T.
-  Proof. iDestruct 1 as (cty ty) "[Hl HT]". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
+  Proof. iDestruct 1 as (ty) "[Hl HT]". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
   Definition find_in_context_type_val_P_id_inst :=
     [instance find_in_context_type_val_P_id with FICSyntactic].
   Global Existing Instance find_in_context_type_val_P_id_inst | 1.
-
-  (*Lemma find_in_context_type_val_P_emp v (T:assert->assert):
-    emp ∗ T emp
-    ⊢ find_in_context (FindValP v) T.
-  Proof. iIntros "H". iExists emp => /=. iFrame. Qed.
-  Definition find_in_context_type_val_P_emp_inst :=
-    [instance find_in_context_type_val_P_emp with FICSyntactic].
-  Global Existing Instance find_in_context_type_val_P_emp_inst | 2.*)
 
   Lemma find_in_context_type_val_P_loc_id l (T:assert->assert):
     (∃ β ty, l ◁ₗ{β} ty ∗ T (l ◁ₗ{β} ty))
@@ -1355,6 +1347,27 @@ Section typing.
   Definition simple_subsume_val_to_subsume_inst := [instance simple_subsume_val_to_subsume].
   Global Existing Instance simple_subsume_val_to_subsume_inst.
 
+  Lemma subsume_temp A ty1 ty2 cty i T:
+    (∀ v, subsume (v ◁ᵥₐₗ|cty| ty1) (λ x : A, v ◁ᵥₐₗ|cty| ty2 x) T) ⊢
+    subsume (i ◁ₜ|cty| ty1) (λ x : A, i ◁ₜ|cty| ty2 x) T.
+  Proof. iIntros "H (% & $ & ?)". by iApply "H". Qed.
+  Definition subsume_temp_inst := [instance subsume_temp].
+  Global Existing Instance subsume_temp_inst.
+
+  Lemma subsume_lvar A ty1 ty2 cty i T:
+    (∀ l, subsume (l ◁ₗ ty1) (λ x : A, l ◁ₗ ty2 x) T) ⊢
+    subsume (i ◁ₗᵥ|cty| ty1) (λ x : A, i ◁ₗᵥ|cty| ty2 x) T.
+  Proof. iIntros "H (% & $ & ?)". by iApply "H". Qed.
+  Definition subsume_lvar_inst := [instance subsume_lvar].
+  Global Existing Instance subsume_lvar_inst.
+
+  Lemma subsume_gvar A ty1 ty2 i T:
+    (∀ l, subsume (l ◁ₗ ty1) (λ x : A, l ◁ₗ ty2 x) T) ⊢
+    subsume (ty_own_gvar ty1 i) (λ x : A, ty_own_gvar (ty2 x) i) T.
+  Proof. iIntros "H (% & $ & ?)". by iApply "H". Qed.
+  Definition subsume_gvar_inst := [instance subsume_gvar].
+  Global Existing Instance subsume_gvar_inst.
+
   Lemma subsume_place_own_ex A ty1 ty2 l β1 β2 T:
     subsume (l ◁ₗ{β1} ty1) (λ x : A, l ◁ₗ{β2 x} ty2 x) T :-
       inhale (l ◁ₗ{β1} ty1); ∃ x, exhale (<affine> ⌜β2 x = β1⌝); exhale (l ◁ₗ{β2 x} ty2 x); return T x.
@@ -1370,24 +1383,6 @@ Section typing.
   (* This lemma is applied via Hint Extern instead of declared as an instance with a `{!∀ x,
   IsEx (ty2 x)} precondition for better performance. *)
   Definition subsume_place_ty_ex_inst := [instance subsume_place_ty_ex].
-
-  Lemma subsume_temp_ex A ty1 ty2 cty i T:
-    subsume (i ◁ₜ|cty| ty1) (λ x : A, i ◁ₜ|cty| ty2 x) T :-
-      ∃ x, exhale (<affine> ⌜ty2 x = ty1⌝); return T x.
-  Proof. iIntros "[% [<- ?]] ?". iExists _. iFrame. Qed.
-  Definition subsume_temp_ex_inst := [instance subsume_temp_ex].
-
-  Lemma subsume_lvar_ex A ty1 ty2 cty i T:
-    subsume (i ◁ₗᵥ|cty| ty1) (λ x : A, i ◁ₗᵥ|cty| ty2 x) T :-
-      ∃ x, exhale (<affine> ⌜ty2 x = ty1⌝); return T x.
-  Proof. iIntros "[% [<- ?]] ?". iExists _. iFrame. Qed.
-  Definition subsume_lvar_ex_inst := [instance subsume_lvar_ex].
-
-  Lemma subsume_gvar_ex A ty1 ty2 i T:
-    subsume (ty_own_gvar ty1 i) (λ x : A, ty_own_gvar (ty2 x) i) T :-
-      ∃ x, exhale (<affine> ⌜ty2 x = ty1⌝); return T x.
-  Proof. iIntros "[% [<- ?]] ?". iExists _. iFrame. Qed.
-  Definition subsume_gvar_ex_inst := [instance subsume_gvar_ex].
 
   Lemma subtype_var {A B} (ty : A → type) x y l β T:
     (∃ z, <affine> ⌜x = y z⌝ ∗ T z)
@@ -2449,12 +2444,3 @@ Global Hint Extern 5 (Subsume (_ ◁ₗ{_} _) (λ _, _ ◁ₗ{_.1ₗ} _)%I) =>
 
 Global Hint Extern 5 (Subsume (_ ◁ₗ{_} _) (λ _, _ ◁ₗ{_} _.1ₗ)%I) =>
   (class_apply subsume_place_ty_ex_inst) : typeclass_instances.
-
-Global Hint Extern 5 (Subsume (_ ◁ₜ|_| _) (λ _, _ ◁ₜ|_| _)%I) =>
-  (class_apply subsume_temp_ex_inst) : typeclass_instances.
-
-Global Hint Extern 5 (Subsume (_ ◁ₜ|_| _) (λ _, _ ◁ₜ|_| _)%I) =>
-  (class_apply subsume_lvar_ex_inst) : typeclass_instances.
-
-Global Hint Extern 5 (Subsume (ty_own_gvar _ _) (λ _, ty_own_gvar _ _)%I) =>
-  (class_apply subsume_gvar_ex_inst) : typeclass_instances.

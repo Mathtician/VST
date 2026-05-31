@@ -32,10 +32,19 @@ Section function.
     fp_fr: fp_rtype → fn_ret;
   }.
 
+  Definition typed_var_block (idt: ident * Ctypes.type): assert :=
+  ⌜(Ctypes.sizeof (snd idt) <= Ptrofs.max_unsigned)%Z⌝ ∧
+  idt.1 ◁ₗᵥ|idt.2| uninit (idt.2).
+
+  Definition typed_stackframe1 (f: Clight.function) : assert :=
+    ([∗ list] idt ∈ fn_vars f, typed_var_block idt) ∗
+    ([∗ list] idt ∈ Clight.fn_params f, idt.1 ◁ₜ|idt.2| uninit (val_type idt.2)) ∗
+    ([∗ list] idt ∈ fn_temps f, idt.1 ◁ₜ|idt.2| uninit (val_type idt.2)).
+
   Definition fn_ret_prop {B} fn (fr : B → fn_ret) : option val → type → assert  :=
     (λ v ty, opt_ty_own_val (fn_return fn) ty v -∗ (<affine> ⌜match v with Some v => tc_val (fn_return fn) v | None => fn_return fn = Tvoid end⌝ ∗
        ∃ x, opt_ty_own_val (fn_return fn) (fr x).(fr_rty) v ∗ (fr x).(fr_R) ∗
-       ∃ lv, stackframe_of1' cenv_cs fn lv))%I.
+       typed_stackframe1 fn))%I.
 
   Definition fn_ret_assert {B} fn (fr : B → fn_ret) : type_ret_assert :=
    {| T_normal := fn_ret_prop fn fr None tytrue;
@@ -47,10 +56,6 @@ Section function.
     FP atys Pa B fr.
 
   Context (Espec : ext_spec OK_ty) (ge : Genv.t Clight.fundef Ctypes.type).
-
-  Definition typed_var_block (idt: ident * Ctypes.type): assert :=
-  ⌜(Ctypes.sizeof (snd idt) <= Ptrofs.max_unsigned)%Z⌝ ∧
-  idt.1 ◁ₗᵥ|idt.2| uninit (idt.2).
 
   Definition typed_stackframe (f: Clight.function) (tys: list type) : assert :=
     ([∗ list] idt ∈ fn_vars f, typed_var_block idt) ∗
@@ -238,6 +243,28 @@ Section function.
         simple_if_tac; [done | apply tc_val'_Vundef].
   Qed.
 
+  Lemma stackframe_of1_typed : forall f,
+    typed_stackframe1 f ⊢ ∃ lv, stackframe_of1' cenv_cs f lv.
+  Proof.
+    intros; rewrite /stackframe_of1' /typed_stackframe1.
+    iIntros "(Hvars & Htemps)".
+    rewrite -bi.sep_exist_l; iSplitL "Hvars".
+    - iApply (big_sepL_mono with "Hvars"); intros ?? H%elem_of_list_lookup_2.
+      (*rewrite !Forall_forall in Hcomplete Halign.
+      specialize (Hcomplete _ H); specialize (Halign _ H).*)
+      rewrite /var_block1 /typed_var_block.
+      iIntros "(% & % & $ & H)"; iSplit; first done.
+      iDestruct (uninit_memory_block with "H") as "(_ & $)".
+    - rewrite -big_sepL_app.
+      forget (Clight.fn_params f ++ fn_temps f) as lx; clear.
+      iInduction lx as [|] "IH".
+      + by iExists [].
+      + iDestruct "Htemps" as "(Hx & Hxs)".
+        iDestruct ("IH" with "Hxs") as (lv) "?".
+        iDestruct "Hx" as (v) "(? & _)".
+        iExists (v :: lv); iFrame.
+  Qed.
+
   Transparent simple_mapsto.memory_block.
 
   Lemma type_call_fnptr l i v vl ctys `{!TCEq (length vl) (length ctys)}
@@ -272,7 +299,8 @@ Section function.
     iApply wp_strong_mono; iFrame "Hfn"; simpl.
     iSplit.
     - rewrite /fn_ret_prop /set_temp_opt /bind_ret; iIntros "H !>"; iFrame.
-      iDestruct ("H" with "[//]") as (??) "(_ & HR & $)".
+      iDestruct ("H" with "[//]") as (??) "(_ & HR & ?)".
+      rewrite stackframe_of1_typed; iFrame.
       iSplit; first done.
       iPoseProof (down1_sep_up1 with "Hr HR") as "H"; rewrite -down1_sep; iApply (down1_mono with "H").
       iIntros "(Hpost & HR)".
@@ -283,7 +311,8 @@ Section function.
     - do 2 (iSplit; intros; first by iIntros "[]").
       rewrite /fn_ret_prop /set_temp_opt /Clight_seplog.bind_ret; iIntros (ret) "H !>".
       iDestruct "H" as (?) "(? & H)"; iFrame.
-      iDestruct ("H" with "[$]") as (??) "(Hretty & HR & $)".
+      iDestruct ("H" with "[$]") as (??) "(Hretty & HR & ?)".
+      rewrite stackframe_of1_typed; iFrame.
       iSplit; first done.
       iCombine ("HR Hretty") as "H"; iPoseProof (down1_sep_up1 with "Hr H") as "H"; rewrite -down1_sep.
       iApply (down1_mono with "H").

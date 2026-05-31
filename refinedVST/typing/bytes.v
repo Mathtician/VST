@@ -233,39 +233,31 @@ Section uninit.
     (∀ v, v ◁ᵥ|ly| ty -∗ ∃ x, T x)
     ⊢ subsume (l ◁ₗ ty) (λ x : A, l ◁ₗ uninit ly) T.
   Proof.
-    unfold TCDone in *; subst. iIntros "HT Hl".
+    iIntros "HT Hl".
     iDestruct (ty_aligned with "Hl") as %?; [done|].
     iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
     iDestruct (ty_size_eq with "Hv") as %?; [done|].
     iDestruct ("HT" with "Hv") as (?) "?". iExists _. rewrite uninit_own_spec. by iFrame.
   Qed.
   (* This rule is handled with a definition and an [Hint Extern] (not
-  with an instance) since this rule should only apply ty is not uninit
-  as this case is covered by the rules for bytes and the CanSolve can
+  with an instance) since this rule should only apply when ty is not uninit
+  as this case is covered by the rules for bytes(?) and the CanSolve can
   be quite expensive. *)
   Definition uninit_mono_inst := [instance uninit_mono].
+  Global Existing Instance uninit_mono_inst.
 
-  (*   (* Typing rule for [Return] (used in [theories/typing/automation.v]). *)
-  Lemma type_return Q e fn ls R:
-    typed_val_expr e (λ v ty,
-      foldr (λ (e : (loc * layout)) T, e.1 ◁ₗ uninit e.2 ∗ T)
-      (R v ty)
-      (zip ls (fn.(f_args) ++ fn.(f_local_vars)).*2))
-    ⊢ typed_stmt (Return e) fn ls R Q.
+  Lemma uninit_mono_v A ty ly v `{!TCDone (ty.(ty_has_op_type) ly MCNone)} T:
+    (∀ v, v ◁ᵥ|ly| ty -∗ ∃ x, T x)
+    ⊢ subsume (v ◁ᵥ|ly| ty) (λ x : A, v ◁ᵥ|ly| uninit ly) T.
   Proof.
-    iIntros "He" (Hls). wps_bind. iApply "He".
-    iIntros (v ty) "Hv HR". iApply wps_return.
-    rewrite /typed_stmt_post_cond. move: Hls. move: (f_args fn ++ f_local_vars fn) => lys {fn} Hlys.
-    iInduction ls as [|l ls] "IH" forall (lys Hlys); destruct lys as [|ly lys]=> //; csimpl in *; simplify_eq.
-    { iExists _. iFrame. }
-    iDestruct "HR" as "[Hl HR]".
-    iDestruct ("IH" with "[//] Hv HR") as (ty') "[?[??]]".
-    iExists _. iFrame.
-    rewrite /ty_own/=. iDestruct "Hl" as (????) "Hl".
-    iExists _. by iFrame.
+    iIntros "HT Hv".
+    iDestruct (ty_size_eq with "Hv") as %?; [done|].
+    iDestruct ("HT" with "Hv") as (?) "?". iExists _. by iFrame.
   Qed.
+  Definition uninit_mono_v_inst := [instance uninit_mono_v].
+  Global Existing Instance uninit_mono_v_inst.
 
-  Lemma type_read_move_copy E l ty ot mc a `{!TCDone (ty.(ty_has_op_type) ot MCCopy)} T:
+  (*Lemma type_read_move_copy E l ty ot mc a `{!TCDone (ty.(ty_has_op_type) ot MCCopy)} T:
     (∀ v, T v (uninit (ot_layout ot)) ty)
     ⊢ typed_read_end a E l Own ty ot mc T.
   Proof.
@@ -295,14 +287,14 @@ End uninit.
 
 Notation "uninit< ly >" := (uninit ly) (only printing, format "'uninit<' ly '>'") : printing_sugar.
 
-(* (* See the definition of [uninit_mono_inst].
-   This hint should only apply ty is not uninit as this case is covered by the rules for bytes. *)
+(*(* See the definition of [uninit_mono_inst].
+   This hint should only apply when ty is not uninit as this case is covered by the rules for bytes. *)
 Global Hint Extern 5 (Subsume (_ ◁ₗ ?ty) (λ _, _ ◁ₗ (uninit _))%I) =>
   lazymatch ty with
   | uninit _ => fail
   | _ => unshelve notypeclasses refine (uninit_mono_inst _ _ _ _ _)
   end
-  : typeclass_instances. *)
+  : typeclass_instances.*)
 
 Section void.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.

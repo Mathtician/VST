@@ -94,11 +94,13 @@ Proof.
   rewrite /= /Clight_seplog.bind_ret; iSplit.
   - rewrite /fn_params_post /=.
     iIntros "Hpost !>"; iFrame.
-    iDestruct ("Hpost" with "[//]") as "($ & % & $ & $ & $)".
+    iDestruct ("Hpost" with "[//]") as "($ & % & $ & $ & ?)".
+    by iApply stackframe_of1_typed.
   - do 2 (iSplit; first by iIntros "[]").
     rewrite /fn_params_post /=.
     iIntros (?) "(% & Hret & Hpost)".
-    iDestruct ("Hpost" with "Hret") as "($ & % & ? & ? & $)"; by iFrame.
+    iDestruct ("Hpost" with "Hret") as "($ & % & ? & ? & ?)".
+    rewrite stackframe_of1_typed; by iFrame.
 Qed.
 
 Lemma typed_fptr_triple : forall `{!VSTGS OK_ty Σ} {cs : compspecs} {A} Espec ge fp l cty,

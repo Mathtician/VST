@@ -60,7 +60,7 @@ Section function.
   Definition typed_function (fn : function) (fp : A → fn_params) : assert :=
     (<affine> ∀ x, <affine> ⌜Forall2 (λ (ty : type) '(_, p), ty.(ty_has_op_type) p MCNone) (fp x).(fp_atys) (Clight.fn_params fn)⌝ ∗
       □ <obj>
-         ((typed_stackframe fn (fp x).(fp_atys) ∗ down1 (fp x).(fp_Pa)) -∗
+         ((typed_stackframe fn (fp x).(fp_atys) ∗ (fp x).(fp_Pa)) -∗
           typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr)))
     )%I.
 
@@ -120,7 +120,7 @@ Section function.
   Lemma prove_typed_function P `{!Persistent P} `{!Affine P} fn fp :
     (forall x, Forall2 (λ (ty : type) '(_, p), ty.(ty_has_op_type) p MCNone) (fp x).(fp_atys) (Clight.fn_params fn) ∧
      (P -∗ <obj> ((typed_stackframe fn (fp x).(fp_atys) ∗
-          down1 (fp x).(fp_Pa)) -∗
+          (fp x).(fp_Pa)) -∗
           typed_stmt Espec ge (fn.(fn_body)) fn (fn_ret_assert fn (fp x).(fp_fr))))) →
     P ⊢ typed_function fn fp.
   Proof.
@@ -244,8 +244,8 @@ Section function.
     retty cc tys fp T :
     (([∗ list] v;'(cty,ty)∈vl; zip ctys tys, v ◁ᵥₐₗ|cty| ty) -∗ ∃ x,
       ⇑ ([∗ list] v;'(cty,ty)∈vl; zip ctys (fp x).(fp_atys), v ◁ᵥₐₗ|cty| ty) ∗
-      (fp x).(fp_Pa) ∗ ∀ v x',
-      up1 ((fp x).(fp_fr) x').(fr_R) -∗
+      ⇑ (fp x).(fp_Pa) ∗ ∀ v x',
+      ⇑ ((fp x).(fp_fr) x').(fr_R) -∗
       set_temp_opt i v (up1 (opt_ty_own_val retty ((fp x).(fp_fr) x').(fr_rty) v) -∗
       T_normal T))
     ⊢ typed_call Espec ge i v (v ◁ᵥₐₗ|tptr (Tfunction ctys retty cc)| l @ function_ptr fp) vl ctys retty cc tys T.

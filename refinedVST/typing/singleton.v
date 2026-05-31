@@ -159,23 +159,18 @@ Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!Def
   Definition type_write_own_inst := [instance type_write_own].
   Global Existing Instance type_write_own_inst | 50.
 
-  (* Is this the right rule? *)
-  Lemma type_tempvar ge f x cty T:
-    find_in_context (FindTemp cty x) (λ ty, <affine> ⌜ty.(ty_has_op_type) (val_type cty) MCNone⌝ ∗
-      (∀ v, x ◁ₜ|cty| value (val_type cty) v -∗ T v ty))
-    ⊢ typed_val_expr ge f (Etempvar x cty) T.
+  Lemma type_temp_move x cty ty `{!TCDone (ty.(ty_has_op_type) (val_type cty) MCNone)} T:
+    (∀ v, x ◁ₜ|cty| value (val_type cty) v -∗ T v ty)
+    ⊢ typed_temp x cty ty T.
   Proof.
-    rewrite /find_in_context /=.
-    iDestruct 1 as (ty) "[(% & ? & Hv) (% & HT)]".
+    iIntros "HT" (v) "Hx Hv".
     iDestruct (ty_size_eq with "Hv") as %?; first done.
-    iIntros (Φ) "HΦ".
-    iApply wp_tempvar_local.
     iFrame.
-    iIntros "Hx".
-    iSpecialize ("HT" with "[$Hx]").
-    { by iPureIntro. }
-    iApply ("HΦ" with "Hv HT").
+    iApply "HT"; iFrame.
+    by iPureIntro.
   Qed.
+  Definition type_temp_move_inst := [instance type_temp_move].
+  Global Existing Instance type_temp_move_inst | 50.
 
 End value.
 Global Typeclasses Opaque value.

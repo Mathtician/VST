@@ -460,6 +460,11 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
   Class TypedAddrOfEnd (l : address) (β : own_state) (ty : type) : Type :=
     typed_addr_of_end_proof T : iProp_to_Prop (typed_addr_of_end l β ty T).
 
+  Definition typed_temp x (ot : Ctypes.type) (ty : type) (T : val → type → assert) : assert :=
+    (∀ v, env.temp x v -∗ v ◁ᵥₐₗ|ot| ty -∗ ∃ ty', v ◁ᵥₐₗ|ot| ty' ∗ T v ty')%I.
+  Class TypedTemp x ot ty : Type :=
+    typed_temp_proof T : iProp_to_Prop (typed_temp x ot ty T).
+
   (*** typed places *)
   (* This defines what place expressions can contain. *)
   (* TODO: Should we track location information here? *)
@@ -729,6 +734,7 @@ Global Hint Mode TypedCall + + + + + + + + + + + + + + : typeclass_instances.
 (*Global Hint Mode TypedCopyAllocId + + + + + + + : typeclass_instances. *)
 Global Hint Mode TypedReadEnd + + + + + + + + + + : typeclass_instances.
 Global Hint Mode TypedWriteEnd + + + + + + + + + + + + : typeclass_instances.
+Global Hint Mode TypedTemp + + + + + + + : typeclass_instances.
 Global Hint Mode TypedAddrOfEnd + + + + + + + : typeclass_instances.
 Global Hint Mode TypedPlace + + + + + + + + + : typeclass_instances.
 Global Hint Mode TypedAnnotExpr + + + + + + + + : typeclass_instances.
@@ -987,10 +993,10 @@ Definition FindLvar `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_
 Definition FindGvar `{!typeG OK_ty Σ} {cs : compspecs} (x : ident) : @find_in_context_info assert :=
   {| fic_A := type; fic_Prop ty := ty_own_gvar ty x; |}.
 Definition FindLoc `{!typeG OK_ty Σ} {cs : compspecs} (l : address) : @find_in_context_info assert :=
-  {| fic_A := own_state * type; fic_Prop '(β, ty):= l ◁ₗ{β} ty; |}.
+  {| fic_A := own_state * type; fic_Prop '(β, ty) := l ◁ₗ{β} ty; |}.
 Definition FindVal `{!typeG OK_ty Σ} {cs : compspecs} cty (v : val) : @find_in_context_info assert :=
   {| fic_A := type; fic_Prop ty := v ◁ᵥₐₗ|cty| ty; |}.
-Definition FindValP `{!typeG OK_ty Σ} {cs : compspecs} (v : val) :=
+Definition FindValP `{!envGS Σ} (v : val) :=
   {| fic_A := assert; fic_Prop P := P; |}.
 Definition FindValOrLoc `{!typeG OK_ty Σ} (v : val) (l : address) :=
   {| fic_A := assert; fic_Prop P := P; |}.
@@ -1011,6 +1017,7 @@ Ltac generate_i2p_instance_to_tc_hook arg c ::=
   | typed_place ?x1 ?x2 ?x3 ?x4 ?x5 => constr:(TypedPlace x1 x2 x3 x4 x5) 
   | typed_read_end ?x1 ?x2 ?x3 ?x4 ?x5 ?x6 => constr:(TypedReadEnd x1 x2 x3 x4 x5 x6)
   | typed_write_end ?x1 ?x2 ?x3 ?x4 ?x5 ?x6 ?x7 ?x8 => constr:(TypedWriteEnd x1 x2 x3 x4 x5 x6 x7 x8) 
+  | typed_temp ?x1 ?x2 ?x3 => constr:(TypedTemp x1 x2 x3)
   | typed_addr_of_end ?x1 ?x2 ?x3 => constr:(TypedAddrOfEnd x1 x2 x3)
 (*   | typed_cas ?x1 ?x2 ?x3 ?x4 ?x5 ?x6 ?x7 => constr:(TypedCas x1 x2 x3 x4 x5 x6 x7) *)
   | typed_annot_expr ?x1 ?x2 ?x3 ?x4 => constr:(TypedAnnotExpr x1 x2 x3 x4)
@@ -1075,6 +1082,7 @@ Section typing.
     [instance find_in_context_type_loc_id with FICSyntactic].
   Global Existing Instance find_in_context_type_loc_id_inst | 1.
 
+  (* should these be for ◁ᵥ instead? *)
   Lemma find_in_context_type_val_id cty v T:
     (∃ ty, v ◁ᵥₐₗ|cty| ty ∗ T ty)
     ⊢ find_in_context (FindVal cty v) T.
@@ -1083,10 +1091,10 @@ Section typing.
     [instance find_in_context_type_val_id with FICSyntactic].
   Global Existing Instance find_in_context_type_val_id_inst | 1.
 
-  Lemma find_in_context_type_val_P_id cty v (T:assert->assert):
-    (∃ ty, v ◁ᵥₐₗ|cty| ty ∗ T (v ◁ᵥₐₗ|cty| ty))
+  Lemma find_in_context_type_val_P_id v (T:assert->assert):
+    (∃ cty ty, v ◁ᵥₐₗ|cty| ty ∗ T (v ◁ᵥₐₗ|cty| ty))
     ⊢ find_in_context (FindValP v) T.
-  Proof. iDestruct 1 as (ty) "[Hl HT]". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
+  Proof. iDestruct 1 as (cty ty) "[Hl HT]". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
   Definition find_in_context_type_val_P_id_inst :=
     [instance find_in_context_type_val_P_id with FICSyntactic].
   Global Existing Instance find_in_context_type_val_P_id_inst | 1.
@@ -1173,7 +1181,9 @@ Section typing.
     := {| rt_fic := FindGvar i |}.
   Global Instance related_to_val A cty v ty : RelatedTo (λ x : A, (valinject cty v) ◁ᵥ|cty| ty x)%I | 100
     := {| rt_fic := FindValP v |}.
-(* FIXME
+  Global Instance related_to_val_rep_v A cty v_rep ty :  RelatedTo (λ x : A, v_rep ◁ᵥ|cty| ty x)%I | 100
+    := {| rt_fic := FindValP (repinject cty v_rep) |}.
+  (* FIXME
   Global Instance related_to_loc_in_bounds A l n : RelatedTo (λ x : A, loc_in_bounds l (n x)) | 100
     := {| rt_fic := FindLocInBounds l |}.
   Global Instance related_to_alloc_alive A l : RelatedTo (λ x : A, alloc_alive_loc l) | 100
@@ -2055,6 +2065,29 @@ Section typing.
     ⊢ typed_val_expr (MacroE m es) T.
   Proof. done. Qed.
 *)
+
+  Lemma type_tempvar ge f x cty T:
+    find_in_context (FindTemp cty x) (λ ty, typed_temp x cty ty T)
+    ⊢ typed_val_expr ge f (Etempvar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
+    iIntros (Φ) "HΦ".
+    iApply wp_tempvar_local; iFrame.
+    iIntros "Hx"; iDestruct ("HT" with "Hx Hv") as (?) "(Hv & HT)".
+    iApply ("HΦ" with "Hv HT").
+  Qed.
+
+  Lemma type_temp_copy x cty ty `{!Copyable (val_type cty) ty} T:
+    (x ◁ₜ| cty | ty -∗ ∀ v, T v ty)
+    ⊢ typed_temp x cty ty T.
+  Proof.
+    iIntros "HT" (v) "Hx #Hv".
+    iExists _; iSplit => //.
+    iApply ("HT" with "[$]").
+  Qed.
+  Definition type_temp_copy_inst := [instance type_temp_copy].
+  Global Existing Instance type_temp_copy_inst | 10.
 
   Lemma type_read_lvalue ge f e T:
     is_lvalue e = true →

@@ -71,7 +71,7 @@ Ltac adequacy_solve_typed_function lemma unfold_tac :=
 
 (* export to base triples *)
 Definition fn_params_pre `{!VSTGS OK_ty Σ} {cs : compspecs} {A} fn fp (x : @dtfr Σ A) lsa : assert :=
-  ([∗ list] v;'(cty, t) ∈ lsa;zip (map snd (fn_params fn)) (fp_atys (fp x)), v ◁ᵥₐₗ| cty | t) ∗ down1 (fp_Pa (fp x)).
+  ([∗ list] v;'(cty, t) ∈ lsa;zip (map snd (fn_params fn)) (fp_atys (fp x)), v ◁ᵥₐₗ| cty | t) ∗ fp_Pa (fp x).
 
 Definition fn_params_post `{!VSTGS OK_ty Σ} {cs : compspecs} {A} fn fp (x : @dtfr Σ A) v : assert :=
   ∃ y, opt_ty_own_val (fn_return fn) ((fp x).(fp_fr) y).(fr_rty) v ∗ ((fp x).(fp_fr) y).(fr_R).

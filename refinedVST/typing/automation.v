@@ -178,6 +178,8 @@ Ltac liExtensible_to_i2p_hook P bind cont ::=
       cont uconstr:(((_ : TypedReadEnd _ _ _ _ _ _) _))
   | typed_write_end ?a ?E ?ot ?v1 ?ty1 ?l2 ?β2 ?ty2 ?T =>
       cont uconstr:(((_ : TypedWriteEnd _ _ _ _ _ _ _ _) _))
+  | typed_temp _ _ _ ?T =>
+      cont uconstr:(((_ : TypedTemp _ _ _) _))
   | typed_addr_of_end ?l ?β ?ty ?T =>
       cont uconstr:(((_ : TypedAddrOfEnd _ _ _) _))
   (*
@@ -383,12 +385,12 @@ Ltac liRJudgement :=
       (* notypeclasses refine (tac_fast_apply (type_addr_of_place _ _ _ _) _); [solve [refine _] |] *)
   end.
 
-(* deal with objective modalities. This is ad-hoc for now *)
+(*(* deal with objective modalities. This is ad-hoc for now *)
 Ltac liObj :=
   match goal with
   | |- envs_entails _ (<obj> _) =>
     iModIntro
-  end.
+  end.*)
 
 (* This does everything *)
 Ltac liRStep :=
@@ -401,7 +403,7 @@ Ltac liRStep :=
     (* | liRIntroduceTypedStmt *)
     | liRExpr
     | liRJudgement
-    | liObj
+    (*| liObj *)
     | liStep
     ];
   liSimpl.
@@ -534,13 +536,13 @@ Section additional_instances.
   Global Instance related_to_val_rep_v A cty v_rep ty :  RelatedTo (λ x : A, ⎡ v_rep ◁ᵥ|cty| ty x⎤:assert)%I | 100
   := {| rt_fic := FindValP (repinject cty v_rep) |}.*)
   
-  Lemma find_in_context_type_val_P_id  cty v (T:assert->assert):
+  (*Lemma find_in_context_type_val_P_id  cty v (T:assert->assert):
     (∃ ty , v ◁ᵥ|cty| ty ∗ T (v ◁ᵥ|cty| ty))
     ⊢ find_in_context (FindValP (repinject cty v)) T.
   Proof. intros. iDestruct 1 as "(% & ? & ?)". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
   Definition find_in_context_type_val_P_id_inst :=
     [instance find_in_context_type_val_P_id with FICSyntactic].
-  Global Existing Instance find_in_context_type_val_P_id_inst | 1.
+  Global Existing Instance find_in_context_type_val_P_id_inst | 1.*)
 
   (*Lemma simple_subsume_val_to_subsume_embed (A:Type) cty (v : reptype cty)  (ty1 : type) (ty2 : A → type) (P:A->mpred)
     `{!∀ (x:A), SimpleSubsumeVal cty ty1 (ty2 x) (P x)} (T: A-> assert) :

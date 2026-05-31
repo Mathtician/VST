@@ -626,7 +626,7 @@ Ltac liFindHyp key :=
              could help even more
              https://coq.inria.fr/distrib/current/refman/proof-engine/tactics.html#coq:tacn.constr-eq*)
           first [unify Q P with typeclass_instances | 
-                 unify (bi_affinely Q) P with typeclass_instances (* for P of thes shape `<affine> _` *)]
+                 unify (bi_affinely Q) P with typeclass_instances (* for P of the shape `<affine> _` *)]
       | _ =>
           notypeclasses refine (tac_find_hyp_equal key Q _ _ _ _ _); [solve [refine _]|];
           lazymatch goal with

@@ -75,14 +75,64 @@ Section struct.
       apply fupd_sep.
   Qed.
 
-  Global Instance struct_pred_persistent : forall m {A} (P : forall it, A it -> val -> mpred) v p,
-    (forall it a v, Persistent (P it a v)) -> Persistent (aggregate_pred.struct_pred m P v p).
+  Global Instance struct_pred_persistent : forall m {A} (P : forall it, A it -> val -> mpred) v p
+    `{!∀ it a v, Persistent (P it a v)}, Persistent (aggregate_pred.struct_pred m P v p).
   Proof.
     induction m; intros.
     - simpl. apply _.
     - destruct m; first apply _.
       rewrite -/aggregate_pred.aggregate_pred.struct_pred struct_pred_cons2.
       apply bi.sep_persistent; apply _.
+  Qed.
+
+  Global Instance struct_pred_affine : forall m {A} (P : forall it, A it -> val -> mpred) v p
+    `{!∀ it a v, Affine (P it a v)}, Affine (aggregate_pred.struct_pred m P v p).
+  Proof.
+    induction m; intros.
+    - simpl. apply _.
+    - destruct m; first apply _.
+      rewrite -/aggregate_pred.aggregate_pred.struct_pred struct_pred_cons2.
+      apply bi.sep_affine; apply _.
+  Qed.
+
+  Lemma proj_compact_prod_cons2 : forall {A} {F : A → Type} a x0 x1 l (v : compact_prod (map F (x0 :: x1 :: l))) d H,
+     proj_compact_prod a (x0 :: x1 :: l) v d H =
+     match H a x0 with
+     | left e => rew <- e in v.1
+     | right n => proj_compact_prod a (x1 :: l) v.2 d H
+     end.
+  Proof.
+    intros; rewrite {1}/proj_compact_prod /list_rect.
+    destruct (H a x0); subst; done.
+  Qed.
+
+  Lemma struct_pred_affine' : forall m {A} (P : forall it, A -> val -> mpred) d v p
+    (Hm : members_no_replicate m = true),
+    (forall it a w, In it m -> a = proj_struct(A := λ _, A) (name_member it) m v d -> Affine (P it a w)) ->
+    Affine (aggregate_pred.struct_pred m P v p).
+  Proof.
+    induction m; intros.
+    - simpl. apply _.
+    - destruct m.
+      + apply H; simpl; auto.
+        rewrite eq_dec_refl.
+        destruct member_dec; last done.
+        rewrite /eq_rect_r; destruct e; done.
+      + rewrite -/aggregate_pred.aggregate_pred.struct_pred struct_pred_cons2.
+        apply bi.sep_affine.
+        * apply H; simpl; auto.
+          rewrite eq_dec_refl.
+          destruct member_dec; last done.
+          rewrite /eq_rect_r; destruct e; done.
+        * assert (members_no_replicate (m :: m0) = true).
+          { cbv beta iota delta [map members_no_replicate compute_list_norepet] in Hm.
+            by destruct (id_in_list _ _). }
+          apply (IHm _ _ d); auto; intros ??? Hin ->; apply H; first by simpl; auto.
+          rewrite /proj_struct proj_compact_prod_cons2.
+          rewrite !get_member_name; [|simpl; auto..].
+          destruct member_dec; last done.
+          eapply in_members_tail_no_replicate in Hm; last apply in_map, Hin.
+          congruence.
   Qed.
 
   Definition make_ty_prod (tys : list type) (mems : members) : compact_prod (map (λ it : member, type) mems).
@@ -143,17 +193,6 @@ Section struct.
     - simpl; auto.
     - rewrite -/aggregate_pred.aggregate_pred.struct_pred !struct_pred_cons2.
       f_equal; auto.
-  Qed.
-
-  Lemma proj_compact_prod_cons2 : forall {A} {F : A → Type} a x0 x1 l (v : compact_prod (map F (x0 :: x1 :: l))) d H,
-     proj_compact_prod a (x0 :: x1 :: l) v d H =
-     match H a x0 with
-     | left e => rew <- e in v.1
-     | right n => proj_compact_prod a (x1 :: l) v.2 d H
-     end.
-  Proof.
-    intros; rewrite {1}/proj_compact_prod /list_rect.
-    destruct (H a x0); subst; done.
   Qed.
 
   Lemma proj_struct_lookup : forall i m d j tys ty
@@ -621,17 +660,6 @@ Section struct.
   Definition struct_mono_inst := [instance struct_mono].
   Global Existing Instance struct_mono_inst.
 
-  (* up *)
-  Lemma embed_big_sepL2 `{BiEmbedEmp PROP1 PROP2} {A B} (Φ : nat → A → B → PROP1) l1 l2 :
-      ⎡[∗ list] k↦x1;x2 ∈ l1;l2, Φ k x1 x2⎤ ⊣⊢ [∗ list] k↦x1;x2 ∈ l1;l2, ⎡Φ k x1 x2⎤.
-  Proof.
-    revert Φ l2; induction l1; destruct l2; simpl; intros.
-    - apply embed_emp.
-    - apply embed_pure.
-    - apply embed_pure.
-    - rewrite embed_sep IHl1 //.
-  Qed.
-
   Lemma struct_mono_val A cty i tys1 tys2 v T:
     subsume (v ◁ᵥ|cty| struct i tys1) (λ x : A, v ◁ᵥ|cty| struct i (tys2 x)) T :-
       vs ← iterate: tys1 with [] {{e T vs, ∀ x, inhale (let 'existT cty v := x in v ◁ᵥ|cty| e); return T (vs ++ [x])}};
@@ -668,6 +696,56 @@ Section struct.
   Definition struct_mono_val_inst := [instance struct_mono_val].
   Global Existing Instance struct_mono_val_inst.
 
+  Global Program Instance struct_own_val_persistent i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
+    v : Persistent (v ◁ᵥ|Tstruct i noattr| struct i tys).
+  Next Obligation.
+  Proof.
+    iIntros (i tys Htys ?); rewrite /ty_own_val /=.
+    repeat ((apply bi.exist_persistent; intros) || (apply bi.sep_persistent; first apply _)).
+    apply embed_persistent, struct_pred_persistent; intros ? a ?.
+    apply bi.exist_persistent; intros.
+    rewrite /Persistent; iIntros "((%j & %Hm & %Hty) & H)".
+    eapply TCForall2_Forall2, (Forall2_lookup_lr _ _ _ j) in Htys; [| rewrite list_lookup_fmap Hm // | done].
+    iDestruct "H" as "#?"; iModIntro; eauto with iFrame.
+  Qed.
+
+  Global Program Instance struct_own_val_affine i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
+    v : Affine (v ◁ᵥ|Tstruct i noattr| struct i tys).
+  Next Obligation.
+  Proof.
+    iIntros (i tys Htys ?); rewrite /ty_own_val /=.
+    repeat ((apply bi.exist_affine; intros) || (apply bi.sep_affine; first apply _)).
+    apply embed_affine, struct_pred_affine; intros ? a ?.
+    apply bi.exist_affine; intros.
+    rewrite /Affine; iIntros "((%j & %Hm & %Hty) & H)".
+    eapply TCForall2_Forall2, (Forall2_lookup_lr _ _ _ j) in Htys; [| rewrite list_lookup_fmap Hm // | done].
+    done.
+  Qed.
+
+  Global Program Instance struct_own_shr_affine i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
+    v : Affine (v ◁ₗ{Shr} struct i tys).
+  Next Obligation.
+  Proof.
+    iIntros (i tys Htys ?); rewrite /ty_own /=.
+    repeat ((apply bi.exist_affine; intros) || (apply bi.sep_affine; first apply _)).
+    pose proof (get_co_members_no_replicate i).
+    eapply embed_affine, (struct_pred_affine' _ _ tytrue); first done.
+    intros ??? Hin ->.
+    apply bi.sep_affine.
+    * rewrite /mapsto_memory_block.at_offset /=.
+      destruct (val2adr _); last apply _.
+      apply elem_of_list_In, elem_of_list_lookup_1 in Hin as (j & Hj).
+      eapply TCForall2_Forall2, (Forall2_lookup_l _ _ _ j) in Htys as (? & ? & ?); [| rewrite list_lookup_fmap Hj //].
+      erewrite proj_struct_lookup; try done; try apply _.
+      rewrite get_member_name //.
+      eapply elem_of_list_In, elem_of_list_lookup_2; eauto.
+    * rewrite /heap_spacer; if_tac; apply _.
+  Qed.
+
+  (* Probably provable, but will be a huge headache and might not be needed.
+  Global Program Instance struct_copyable i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}:
+    Copyable (Tstruct i noattr) (struct i tys).*)
+  
   Definition field_index_of ms n := fst <$> list_find (λ m, name_member m = n) ms.
   #[global] Arguments field_index_of !_ !_ /.
 

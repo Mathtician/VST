@@ -170,10 +170,10 @@ Ltac liExtensible_to_i2p_hook P bind cont ::=
       cont uconstr:(((_ : TypedPlace _ _ _ _ _) _))
   | typed_if ?ot ?v ?P ?F ?T1 ?T2 =>
       cont uconstr:(((_ : TypedIf _ _ _ _) _ _))
-  | typed_switch _ _ _ _ _ _ _ _ =>
-      cont uconstr:(((_ : TypedSwitch _ _ _ _ _) _ _ _ _ _ _ _))
-  | typed_assert _ _ _ _ _ _ _ _ =>
-      cont uconstr:(((_ : TypedAssert _ _ _ _ _) _ _ _ _ _))
+  | typed_switch _ _ _ _ _ _ =>
+      cont uconstr:(((_ : TypedSwitch _ _ _) _ _ _))
+  | typed_assert _ _ _ _ =>
+      cont uconstr:(((_ : TypedAssert _ _ _) _))
   | typed_read_end ?a ?E ?l ?β ?ty ?ly ?T =>
       cont uconstr:(((_ : TypedReadEnd _ _ _ _ _ _) _))
   | typed_write_end ?a ?E ?ot ?v1 ?ty1 ?l2 ?β2 ?ty2 ?T =>

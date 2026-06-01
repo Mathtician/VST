@@ -142,9 +142,7 @@ Notation boolean := (generic_boolean StrictBool).
 Notation "boolean< it >" := (boolean it)
   (only printing, format "'boolean<' it '>'") : printing_sugar.
 
-(* Type corresponding to [_Bool] (https://en.cppreference.com/w/c/types/boolean). *)
-Notation u8 := (Tint I8 Unsigned noattr).
-Notation builtin_boolean := (generic_boolean StrictBool u8).
+Notation builtin_boolean := (generic_boolean StrictBool tbool).
 
 Section generic_boolean.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
@@ -350,9 +348,13 @@ Section builtin_boolean.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
   Lemma type_val_builtin_boolean b T:
-    (T (b @ builtin_boolean)) ⊢ typed_value u8 (Val.of_bool b) T.
+    (T (b @ builtin_boolean)) ⊢ typed_value tbool (Val.of_bool b) T.
   Proof.
-    iIntros "HT". iExists _. iFrame. iPureIntro. split; first done. exists (if b then 1 else 0); destruct b; simpl; done.
+    iIntros "HT". iExists _. iFrame. iPureIntro. split; first done. exists (if b then 1 else 0); destruct b; simpl.
+    - repeat split; auto.
+      intros _; simpl; auto.
+    - repeat split; auto.
+      intros _; simpl; auto.
   Qed.
   Definition type_val_builtin_boolean_inst := [instance type_val_builtin_boolean].
   Global Existing Instance type_val_builtin_boolean_inst.

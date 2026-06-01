@@ -42,6 +42,17 @@ Section value.
     apply val_type_by_value.
   Qed.
 
+  Global Program Instance value_copyable ot v: Copyable ot (value ot v).
+  Next Obligation.
+    iIntros (??????) "(% & % & Hl)".
+    iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "[% [% Hl]]" => //.
+    iSplitR => //. iExists q, (valinject ot v). iFrame. iModIntro.
+    repeat iSplit => //.
+    iIntros "↦".
+    iMod (heap_mapsto_own_state_from_mt with "↦") as "Hl'"; try done.
+    by iFrame.
+  Qed.
+
   Lemma value_simplify ot v p T:
     (<affine> ⌜v = valinject ot p⌝ -∗ <affine>⌜v `has_layout_val` ot⌝ -∗ ⟦v ◁ᵥ|ot| value ot p⟧ -∗ T)
     ⊢ simplify_hyp (v ◁ᵥ|ot| value ot p) T.

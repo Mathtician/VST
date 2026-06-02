@@ -346,7 +346,7 @@ Ltac liRExpr :=
   lazymatch goal with
   | |- envs_entails ?Δ (typed_val_expr _ _ ?e ?T) =>
     lazymatch e with
-    | Ecast _ (tptr _) => notypeclasses refine (tac_fast_apply (type_cast_to_ptr _ _ _ _ _) _)
+    | Ecast _ (tptr _) => notypeclasses refine (tac_fast_apply (type_cast_to_ptr _ _ _ _ _ _) _); [done|]
     | Ecast _ _ => first [notypeclasses refine (tac_fast_apply (type_cast_int_same _ _ _ _) _) |
                           notypeclasses refine (tac_fast_apply (type_cast_int _ _ _ _ _) _)]
     | Econst_int _ _ => notypeclasses refine (tac_fast_apply (type_const_int _ _ _ _ _) _)
@@ -462,7 +462,7 @@ Tactic Notation "start_function" constr(fnname) "(" simple_intropattern(x) ")" :
   split; [simpl; by [repeat constructor; try econstructor] || fail "in" fnname "argument types don't match layout of arguments" |].
 
 Tactic Notation "start_function2" :=
-  iIntros "#?"; rewrite /typed_stackframe.
+  iStartProof; rewrite /typed_stackframe.
 
 (*Ltac type_function_end :=
   match goal with |- envs_entails _ (typed_stackframe1 _) =>

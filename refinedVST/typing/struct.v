@@ -709,6 +709,7 @@ Section struct.
     iDestruct "H" as "#?"; iModIntro; eauto with iFrame.
   Qed.
 
+  (* which is better, this or struct_affine? *)
   Global Program Instance struct_own_val_affine i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
     v : Affine (v ◁ᵥ|Tstruct i noattr| struct i tys).
   Next Obligation.

@@ -842,31 +842,67 @@ Section null.
   Global Existing Instance type_if_null_inst.
 
   (* casting a value v from cty to (tptr _). *)
+  Definition can_cast_to_tptr cty := 
+    match cty with
+    | Tint _ _ _ | Tlong _ _ | Tpointer _ _ | Tarray _ _ _ | Tfunction _ _ _ => true
+    | _ => false
+    end.
+
   Definition cast_to_tptr v cty :=
-    match v, cty with
+    match cty with
+    | Tint _ si _ => if Archi.ptr64
+      then (* cast_case_i2l si *)
+        match v with Vint n => Vlong (cast_int_long si n) | _ => v end
+      else v
+    | Tlong _ _ =>
+      if Archi.ptr64
+      then v
+      else (* cast_case_l2i I32 Unsigned *) 
+        match v with Vlong n => Vint (cast_int_int I32 Unsigned (Int.repr (Int64.unsigned n))) | _ => v end
+    | _ => v
+    end.
+
+    (*match v, cty with
     | Vint n, Tint _ si _ => 
       if Archi.ptr64
       then (* cast_case_i2l si *)
-        Some (Vlong (cast_int_long si n))
-      else Some v
+        Vlong (cast_int_long si n)
+      else v
     | Vlong n, Tlong _ _ =>
       if Archi.ptr64
       then Some v
       else (* cast_case_l2i I32 Unsigned *) 
-        Some(Vint (cast_int_int I32 Unsigned (Int.repr (Int64.unsigned n))))
+        Some (Vint (cast_int_int I32 Unsigned (Int.repr (Int64.unsigned n))))
+    | Vint n, Tpointer _ _ =>
+      if Archi.ptr64
+      then None
+      else Some v
+    | Vlong n, Tpointer _ _ =>
+      if Archi.ptr64
+      then Some v
+      else None
     | Vptr _ _, Tlong _ _
     | Vptr _ _, Tpointer _ _
     | Vptr _ _, Tarray _ _ _
     | Vptr _ _, Tfunction _ _ _  =>
       Some v
     | _, _ => None
-   end.
+   end.*)
   
-  Lemma cast_int_ptr_sem_cast v v' ty ty2 m:
-    cast_to_tptr v ty = Some v'->
-    Cop.sem_cast v ty (tptr ty2) m = Some v'.
+  Lemma cast_to_ptr_sem_cast v ty ty2 m:
+    tc_val (val_type ty) v ->
+    can_cast_to_tptr ty = true ->
+    Cop.sem_cast v ty (tptr ty2) m = Some (cast_to_tptr v ty).
   Proof.
-    intros. destruct v, ty eqn:?; done.
+    intros. destruct v, ty eqn:?; try done; simpl.
+    - hnf in H.
+      destruct eqb_type; done.
+    - hnf in H.
+      destruct eqb_type; done.
+    - hnf in H.
+      destruct eqb_type; done.
+    - hnf in H.
+      destruct eqb_type; done.
   Qed.
 
   Instance Int_eq_dec (i1 i2:int): Decision (i1 = i2).
@@ -896,46 +932,62 @@ Section null.
     split;  intro H; inv H; done.
   Qed.
 
-  Lemma type_cast_to_ptr f e ot T:
+  (*Lemma type_cast_to_ptr0 f e ot T: is_tptr (typeof e) →
       typed_val_expr ge f e (λ v ty0,
-      ∃ v', <affine> ⌜Some v' = cast_to_tptr v (typeof e)⌝ ∗
       if is_null v then
-        <affine> ⌜is_pointer_or_null nullval⌝ ∗
-        <affine> ⌜ty0 = null⌝ ∗
+        <affine> ⌜Affine (v ◁ᵥₐₗ|typeof e| ty0)⌝ ∗
         T nullval null 
       else
-        (v ◁ᵥₐₗ|typeof e| ty0 -∗
-         <affine> ⌜is_pointer_or_null v'⌝ ∗ T v' (value (tptr ot) v')))
+        (v ◁ᵥₐₗ|typeof e| ty0 -∗ <affine> ⌜is_pointer_or_null v⌝ ∗ T v (value (tptr ot) v)))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
     intros; iIntros "He %Φ HΦ".
     iApply wp_cast0.
     iApply "He".
-    iIntros (v ?) "own_v (%v' & % & HT)".
+    iIntros (v ?) "own_v HT".
     destruct (is_null v) eqn:His_null.
-    - iDestruct ("HT") as "(% & -> & HT)".
-      iExists v'; subst; iSplit.
-      { iPureIntro; intros. apply cast_int_ptr_sem_cast. done. }
+    - iDestruct ("HT") as "(% & HT)".
       apply is_null_nullval in His_null as ->.
-      assert (v' = nullval) as ->.
-      { 
-        destruct (typeof e); try done.
-        rewrite /nullval.
-        rewrite /nullval /cast_to_tptr /= in H.
-        destruct Archi.ptr64; inv H; done.
-      }
-      
+      iExists nullval; iSplit.
+      { iPureIntro; intros. admit. (* is_null *) }
       iApply ("HΦ" with "[] HT"); rewrite /val_type /=; try iFrame.
       rewrite /ty_own_val_at /ty_own_val //.
     - iDestruct ("HT" with "own_v") as "(% & HT)".
-      iExists v'; subst; iSplit.
-      { iPureIntro; intros. apply cast_int_ptr_sem_cast. done. }
+      iExists v; subst; iSplit.
+      { iPureIntro; intros. admit. }
       iApply ("HΦ" with "[] HT").
       unfold value; simpl_type.
       iPureIntro; split3; try done.
       rewrite has_layout_val_by_value //=.
       intros ?; simpl.
       rewrite andb_false_r //.
+  Qed.
+  Definition type_cast_to_ptr_inst := [instance type_cast_to_ptr].*)
+  (*Global Existing Instance type_cast_int_ptr_cast_case_pointer_inst | 50.*)
+
+  Lemma type_cast_to_ptr f e ot T: can_cast_to_tptr (typeof e) →
+      typed_val_expr ge f e (λ v ty0, <affine> ⌜ty_has_op_type ty0 (val_type (typeof e)) MCNone⌝ ∗
+      <affine> ⌜can_cast_to_tptr (typeof e) = true⌝ ∗ (v ◁ᵥₐₗ|typeof e| ty0 -∗ 
+      <affine> ⌜v ≠ Vundef⌝ ∗ let v' := cast_to_tptr v (typeof e) in
+        <affine> ⌜is_pointer_or_null v'⌝ ∗ T v' (value (tptr ot) v')))
+    ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
+  Proof.
+    intros; iIntros "He %Φ HΦ".
+    iApply wp_cast0.
+    iApply "He".
+    iIntros (v ?) "own_v (%Hty & % & HT)".
+    iDestruct (ty_size_eq with "own_v") as %Hv; first done.
+    iDestruct ("HT" with "own_v") as "(% & % & HT)".
+    iExists _; iSplit.
+    { iPureIntro; intros. apply cast_to_ptr_sem_cast; try done.
+      apply has_layout_val_tc_val in Hv as (? & ?); auto.
+      apply val_type_by_value. }
+    iApply ("HΦ" with "[] HT").
+    unfold value; simpl_type.
+    iPureIntro; split3; try done.
+    rewrite has_layout_val_by_value //=.
+    intros ?; simpl.
+    rewrite andb_false_r //.
   Qed.
   Definition type_cast_to_ptr_inst := [instance type_cast_to_ptr].
   (*Global Existing Instance type_cast_int_ptr_cast_case_pointer_inst | 50.*)

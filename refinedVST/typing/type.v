@@ -610,6 +610,18 @@ Notation type_alive_own ty := (type_alive ty Own).
 Section alloc_alive.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
+  Lemma alloc_alive_shorten l n m: n <= m → alloc_alive_loc l m ⊢ alloc_alive_loc l n.
+  Proof.
+    intros; rewrite /alloc_alive_loc; do 4 f_equiv.
+    intros ?; lia.
+  Qed.
+
+  Lemma type_alive_shorten ty β n m: n <= m → type_alive ty β m ⊢ type_alive ty β n.
+  Proof.
+    intros; rewrite /type_alive; do 4 f_equiv.
+    by apply alloc_alive_shorten.
+  Qed.
+
   Lemma movable_alloc_alive ty l ot mt :
     ty.(ty_has_op_type) ot mt →
     ty.(ty_own) Own l -∗ alloc_alive_loc l (sizeof ot).

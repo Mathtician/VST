@@ -161,27 +161,24 @@ Section int.
 
   Definition int (it : Ctypes.type) : rtype _ := RType (int_inner_type it).
 
-(*   Lemma int_loc_in_bounds l β n it:
-     l ◁ₗ{β} n @ int it -∗ loc_in_bounds l (bytes_per_int it).
+  Lemma int_loc_in_bounds l β n it:
+     l ◁ₗ{β} n @ int it -∗ loc_in_bounds l (Z.to_nat (sizeof it)).
   Proof.
-    iIntros "(%&%Hv&%&Hl)". move: Hv => /val_to_Z_length <-.
-    by iApply heap_mapsto_own_state_loc_in_bounds.
+    iIntros "(%&%Hv&%&%&_)". by iApply has_layout_in_bounds.
   Qed.
-  Global Instance loc_in_bounds_int n it β: LocInBounds (n @ int it) β (bytes_per_int it).
+  Global Instance loc_in_bounds_int n it β: LocInBounds (n @ int it) β (Z.to_nat (sizeof it)).
   Proof.
-    constructor. iIntros (l) "Hl".
-    iDestruct (int_loc_in_bounds with "Hl") as "Hlib".
-    iApply loc_in_bounds_shorten; last done. lia.
+    constructor. intros; apply int_loc_in_bounds.
   Qed.
 
-  Global Instance alloc_alive_int n it β: AllocAlive (n @ int it) β True.
+  Global Instance alloc_alive_int n it: AllocAlive (n @ int it) Own (sizeof it) True.
   Proof.
-    constructor. iIntros (l ?) "(%&%&%&Hl)".
-    iApply (heap_mapsto_own_state_alloc with "Hl").
-    erewrite val_to_Z_length; [|done]. have := bytes_per_int_gt_0 it. lia.
+    constructor. iIntros (l ?) "(%&%&%&%Hly&Hl)".
+    iApply (data_at_rec_alloc with "Hl"); try done; try apply Hly.
+    destruct Hly as (_ & _ & ? & _); simpl in *; rep_lia.
   Qed.
 
-  Global Program Instance learn_align_int β it n
+  (*Global Program Instance learn_align_int β it n
     : LearnAlignment β (n @ int it) (Some (ly_align it)).
   Next Obligation. by iIntros (β it n ?) "(%&%&%&?)". Qed. *)
 

@@ -123,12 +123,12 @@ Section generic_boolean.
     destruct cty; try done; destruct v; try done.
   Qed.
 
-  (*  Global Instance alloc_alive_generic_boolean b stn it β: AllocAlive (b @ generic_boolean stn it) β True.
+  Global Instance alloc_alive_generic_boolean b stn it: AllocAlive (b @ generic_boolean stn it) Own (sizeof it) True.
   Proof.
-    constructor. iIntros (l ?) "(%&%&%&%&%&Hl)".
-    iApply (heap_mapsto_own_state_alloc with "Hl").
-    erewrite val_to_Z_length; [|done]. have := bytes_per_int_gt_0 it. lia.
-  Qed.*)
+    constructor. iIntros (l ?) "(%&%&%&%&%&%Hly&Hl)".
+    iApply (data_at_rec_alloc with "Hl"); try done; try apply Hly.
+    destruct Hly as (_ & _ & ? & _); simpl in *; rep_lia.
+  Qed.
 
   Global Instance generic_boolean_timeless l b stn it:
     Timeless (l ◁ₗ b @ generic_boolean stn it)%I.

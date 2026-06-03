@@ -713,12 +713,12 @@ Section null.
 
   Lemma type_binop_ptr_null cty v op (l : address) t1 t2 ty β T:
     (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗
-     (∃ n : nat, type_alive ty β n ∗ <affine> ⌜n > 0⌝%nat) ∗ ∀ v, l ◁ₗ{β} ty -∗
+     type_alive ty β 1 ∗ ∀ v, l ◁ₗ{β} ty -∗
           T v ((if op is Oeq then false else true) @ boolean tint))
       ⊢ typed_bin_op ge l (l ◁ₗ{β} ty) v (v ◁ᵥₐₗ|tptr cty| null) op (tptr t1) (tptr t2) tint T.
   Proof.
     rewrite /type_alive.
-    iIntros "(% & (% & #Halive & %) & HT) Hl" (?) "% HΦ"; simpl in *; subst.
+    iIntros "(% & #Halive & HT) Hl" (?) "% HΦ"; simpl in *; subst.
     iApply (wp_binop_sc _ _ _ _ _ _ _ (Val.of_bool (if op is Oeq then false else true))).
     { by destruct op. }
     iSplit.
@@ -741,12 +741,12 @@ Section null.
 
   Lemma type_binop_null_ptr cty v op (l : address) t1 t2 ty β T:
     (<affine> ⌜match op with | Cop.Oeq | Cop.One => True | _ => False end⌝ ∗
-    (∃ n : nat, type_alive ty β n ∗ <affine> ⌜n > 0⌝%nat) ∗ ∀ v, l ◁ₗ{β} ty -∗
+    type_alive ty β 1 ∗ ∀ v, l ◁ₗ{β} ty -∗
      T v ((if op is Oeq then false else true) @ boolean tint))
       ⊢ typed_bin_op ge v (v ◁ᵥₐₗ|tptr cty| null) l (l ◁ₗ{β} ty) op (tptr t1) (tptr t2) tint T.
   Proof.
     rewrite /type_alive.
-    iIntros "(% & (% & #Halive & %) & HT)" (?) "Hl % HΦ"; simpl in *; subst.
+    iIntros "(% & #Halive & HT)" (?) "Hl % HΦ"; simpl in *; subst.
     iApply (wp_binop_sc _ _ _ _ _ _ _ (Val.of_bool (if op is Oeq then false else true))).
     { by destruct op. }
     iSplit.
@@ -1003,7 +1003,7 @@ Section optionable.
 
   Global Program Instance frac_ptr_optional p cty cty2 ty β t1 t2:
     Optionable cty cty2 (p @ frac_ptr β ty) null (tptr t1) (tptr t2) := {|
-    opt_pre v1 v2 := (p ◁ₗ{β} ty -∗ (∃ n, alloc_alive_loc p n ∗ <affine> ⌜n > 0⌝) ∗ True)%I
+    opt_pre v1 v2 := (p ◁ₗ{β} ty -∗ alloc_alive_loc p 1 ∗ True)%I
   |}.
   Next Obligation.
     intros.
@@ -1013,7 +1013,7 @@ Section optionable.
     destruct bty.
     - iDestruct "H1" as "(% & Hty)".
       rewrite repinject_valinject in H; subst; last by apply val_type_by_value.
-      iDestruct ("Hpre" with "Hty") as "((% & Hlib & %) & _)".
+      iDestruct ("Hpre" with "Hty") as "(Hlib & _)".
       iSpecialize ("Hlib" $! 0 with "[%]"); first lia.
       iDestruct (valid_pointer.valid_pointer_dry0 with "[$Hctx $Hlib]") as %Hvalid; iPureIntro.
       rewrite Ptrofs.add_zero in Hvalid.

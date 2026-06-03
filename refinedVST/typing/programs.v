@@ -1222,18 +1222,18 @@ Section typing.
   Definition subsume_alloc_alive_global_inst := [instance subsume_alloc_alive_global].
   Global Existing Instance subsume_alloc_alive_global_inst.*)
 
-  Lemma subsume_alloc_alive A ty β n l P `{!AllocAlive ty β n P} T :
+  Lemma subsume_alloc_alive A ty β n m l P `{!AllocAlive ty β m P} T :
     (* You don't get l ◁ₗ{β} ty back because alloc_alive is not persistent. *)
-    (P ∗ ∃ x, T x)
+    (<affine> ⌜n ≤ m⌝ ∗ P ∗ ∃ x, T x)
     ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, alloc_alive_loc l n) T.
-  Proof. iIntros "[HP [% ?]] Hl". iExists _. iFrame. by iApply (alloc_alive_alive with "HP"). Qed.
+  Proof. iIntros "(% & HP & [% ?]) Hl". iExists _. iFrame. iApply alloc_alive_shorten; first done. by iApply (alloc_alive_alive with "HP"). Qed.
   Definition subsume_alloc_alive_inst := [instance subsume_alloc_alive].
   Global Existing Instance subsume_alloc_alive_inst | 5.
 
-  Lemma subsume_alloc_alive_type_alive A ty β n l `{!CheckOwnInContext (type_alive ty β n)} T :
-    (type_alive ty β n ∗ ∃ x, T x)
+  Lemma subsume_alloc_alive_type_alive A ty β n m l `{!CheckOwnInContext (type_alive ty β m)} T :
+    (type_alive ty β m ∗ <affine> ⌜n ≤ m⌝ ∗ ∃ x, T x)
     ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, alloc_alive_loc l n) T.
-  Proof. iIntros "[Ha [% ?]] Hl". rewrite /type_alive. iExists _. iFrame. by iApply "Ha". Qed.
+  Proof. iIntros "(Ha & % & [% ?]) Hl". rewrite /type_alive. iExists _. iFrame. iApply alloc_alive_shorten; first done. by iApply "Ha". Qed.
   Definition subsume_alloc_alive_type_alive_inst := [instance subsume_alloc_alive_type_alive].
   Global Existing Instance subsume_alloc_alive_type_alive_inst | 10.
 

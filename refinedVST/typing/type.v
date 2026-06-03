@@ -309,50 +309,45 @@ Section own_state.
   Global Instance heap_mapsto_own_state_shr_persistent cty l v : Persistent (l ↦[ Shr ]|cty| v).
   Proof. apply _. Qed.
 
-(* Caesium uses a ghost heap to track the bounds of each allocation (block) persistently.
-   We don't have anything analogous; when it would be required, we use valid_pointer, but
-   that's not a persistent assertion and actually owns part of the memory. In particular,
-   shared ownership can't imply valid_pointer without a view shift. I think Caesium is
-   actually defining undefined behavior here: for instance, comparing pointers to once-
-   allocated but now-deallocated memory seems like UB by the C standard. *)
+  Definition loc_in_bounds (l : loc) (n : nat) : assert := ⌜Ptrofs.unsigned l.2 + n < Ptrofs.modulus⌝.
 
-  (* Also, for some reason Caesium says that offset 0 is in bounds of a size-0 allocation. *)
-  Definition loc_in_bounds (l : loc) (n : nat) : assert := ∀ i, ⌜0 ≤ i < n⌝ →
-    ⎡valid_pointer (offset_val i l)⎤.
+  (* In RefinedC, an entire allocation (i.e., block) is either alive or not. In CompCert's model specific
+     offsets within a block can be valid or invalid. *)
+  Definition alloc_alive_loc (l : loc) n : assert := ∀ i, ⌜0 ≤ i < n⌝ → ⎡valid_pointer (offset_val i l)⎤.
 
-  Lemma data_at_rec_loc_in_bounds : forall q cty v (l : address),
-    q ≠ Share.bot →
+  Lemma data_at_rec_alloc : forall q cty v (l : address), q ≠ Share.bot →
     composite_compute.complete_legal_cosu_type cty = true →
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof cty < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs cty (Ptrofs.unsigned l.2) →
-    ⎡data_at_rec q cty v l⎤ ⊢ loc_in_bounds l (Z.to_nat (expr.sizeof cty)).
+    ⎡data_at_rec q cty v l⎤ ⊢ alloc_alive_loc l (sizeof cty).
   Proof.
     intros.
     destruct l as (b, o); simpl.
     rewrite -{1}(Ptrofs.repr_unsigned o) data_at_rec_data_at_rec_ // data_at_rec_lemmas.memory_block_data_at_rec_default_val // Ptrofs.repr_unsigned.
-    iIntros "Hl" (??); iApply (valid_pointer.memory_block_valid_pointer with "Hl"); auto.
-    rep_lia.
+    iIntros "H" (i ?).
+    rewrite (valid_pointer.memory_block_valid_pointer _ _ _ i) //.
   Qed.
 
-  Lemma heap_mapsto_own_state_loc_in_bounds E (l : address) β cty v : mtE ⊆ E →
+  Lemma heap_mapsto_own_state_alloc E (l : address) β cty v : mtE ⊆ E →
     (* should we include all these conditions in mapsto? *)
     composite_compute.complete_legal_cosu_type cty = true →
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof cty < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs cty (Ptrofs.unsigned l.2) →
-    l ↦[β]|cty| v ={E}=∗ loc_in_bounds l (Z.to_nat (expr.sizeof cty)).
+    l ↦[β]|cty| v ={E}=∗ alloc_alive_loc l (sizeof cty).
     (* Unfortunately we need the view shift here -- we can't put valid_pointer outside the
-       inv in the Shr case without losing persistence -- but that makes this almost
-       unusable. *)
+       inv in the Shr case without losing persistence -- but that makes this useless in the
+       Shr case. In theory we should only need |={E}=> valid_pointer in the rules, but not
+       sure how to prove that. *)
   Proof.
     intros; destruct β; simpl.
-    - iIntros "Hl !>". rewrite /mapsto data_at_rec_loc_in_bounds //; auto.
+    - iIntros "Hl !>". rewrite /mapsto data_at_rec_alloc //; auto.
     - iIntros "Hl"; iInv "Hl" as ">(% & % & Hl)".
       rewrite /mapsto.
       exploit slice.split_readable_share; first done; intros (? & ? & ? & ? & ?).
       rewrite -data_at_rec_share_join //.
       iDestruct "Hl" as "($ & Hl)".
       iIntros "!>"; iSplit; first done.
-      rewrite /mapsto data_at_rec_loc_in_bounds //; auto.
+      rewrite /mapsto data_at_rec_alloc //; auto.
   Qed.
 
 (*  Lemma heap_mapsto_own_state_nil l β:
@@ -381,17 +376,6 @@ Section own_state.
     iApply inv_alloc. iModIntro. iExists _. by iFrame.
   Qed.
 
-(*  Lemma heap_mapsto_own_state_alloc l β v :
-    length v ≠ 0%nat →
-    l ↦[β] v -∗ alloc_alive_loc l.
-  Proof.
-    iIntros (?) "Hl".
-    destruct β; [ by iApply heap_mapsto_alive|].
-    iApply heap_mapsto_alive_strong.
-    iMod (heap_mapsto_own_state_to_mt with "Hl") as (? ?) "?"; [done|].
-    iApply fupd_mask_intro; [done|]. iIntros "_". iExists _, _. by iFrame.
-  Qed.*)
-
   Lemma heap_mapsto_own_state_share t l v E:
     l ↦[Own]|t| v ={E}=∗ l ↦[Shr]|t| v.
   Proof. apply heap_mapsto_own_state_from_mt; auto. Qed.
@@ -401,6 +385,12 @@ Section own_state.
   Proof.
     iDestruct 1 as (v) "Hl". iMod (heap_mapsto_own_state_share with "Hl").
     iExists _. by iFrame.
+  Qed.
+
+  Lemma has_layout_in_bounds l cty: has_layout_loc l cty → ⊢ loc_in_bounds l (Z.to_nat (sizeof cty)).
+  Proof.
+    intros (_ & _ & ? & _); iPureIntro.
+    simpl in *; rep_lia.
   Qed.
 
 (*  Lemma heap_mapsto_own_state_app l v1 v2 β:
@@ -578,12 +568,9 @@ Global Existing Instance copy_own_val_persistent.
 Global Existing Instance copy_own_val_affine.
 Global Existing Instance copy_own_affine.
 
-(* we require a nonzero size, since unlike in Caesium a size-0 allocation isn't enough
-   to obtain valid_pointer *)
+
 Class LocInBounds `{!typeG OK_ty Σ} {cs : compspecs} (ty : type) (β : own_state) (n: nat) := {
-  loc_in_bounds_pos : (n > 0)%nat;
   loc_in_bounds_in_bounds l : ty.(ty_own) β l -∗ loc_in_bounds l n
-  (* if we make this ={E}=∗ instead, it interacts poorly with ∧ *)
 }.
 Arguments loc_in_bounds_in_bounds {_ _ _ _} _ _ _ {_} _.
 Global Hint Mode LocInBounds + + + + + + - : typeclass_instances.
@@ -593,77 +580,61 @@ Section loc_in_bounds.
 
   Lemma loc_in_bounds_shorten l n m: (n <= m)%nat → loc_in_bounds l m ⊢ loc_in_bounds l n.
   Proof.
-    intros; rewrite /loc_in_bounds; iIntros "H" (??).
-    iApply "H"; iPureIntro; lia.
-  Qed.
-
-  Lemma loc_in_bounds_valid_pointer : forall l n, (n > 0)%nat →
-    loc_in_bounds l n ⊢ ⎡valid_pointer l⎤.
-  Proof.
-    intros; iIntros "H".
-    iSpecialize ("H" $! 0 with "[%]"); first lia.
-    by iApply valid_pointer_offset_zero.
-  Qed.
-
-  Lemma loc_in_bounds_weak_valid_pointer : forall l n, (n > 0)%nat →
-    loc_in_bounds l n ⊢ ⎡weak_valid_pointer l⎤.
-  Proof.
-    intros; rewrite -valid_pointer_weak; by eapply loc_in_bounds_valid_pointer.
+    intros; rewrite /loc_in_bounds; f_equiv.
+    intros ?; lia.
   Qed.
 
   Lemma movable_loc_in_bounds ty (l : address) ot mt:
-    composite_compute.complete_legal_cosu_type ot = true →
-    0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof ot < Ptrofs.modulus →
-    align_mem.align_compatible_rec cenv_cs ot (Ptrofs.unsigned l.2) →
     ty.(ty_has_op_type) ot mt →
     ty.(ty_own) Own l -∗ loc_in_bounds l (Z.to_nat (expr.sizeof ot)).
   Proof.
-    intros; iIntros "Hl". iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
-    rewrite /mapsto data_at_rec_loc_in_bounds //; auto.
+    intros; iIntros "Hl". iDestruct (ty_aligned with "Hl") as %?; first done.
+    by iApply has_layout_in_bounds.
   Qed. 
 
-(*  Global Instance intro_persistent_loc_in_bounds l n:
-    IntroPersistent (loc_in_bounds l n) (loc_in_bounds l n).
-  Proof. constructor. by iIntros "#H !>". Qed. *)
+  Global Instance intro_persistent_loc_in_bounds l n:
+    IntroPersistent (<affine> loc_in_bounds l n) (loc_in_bounds l n).
+  Proof. constructor. by iIntros "#H !>". Qed.
 End loc_in_bounds.
 
-(*Class AllocAlive `{!typeG Σ} (ty : type) (β : own_state) (P : iProp Σ) := {
-  alloc_alive_alive l : P -∗ ty.(ty_own) β l -∗ alloc_alive_loc l
+Class AllocAlive `{!typeG OK_ty Σ} {cs : compspecs} (ty : type) (β : own_state) n (P : assert) := {
+  alloc_alive_alive l : P -∗ ty.(ty_own) β l -∗ alloc_alive_loc l n
 }.
-Arguments alloc_alive_alive {_ _} _ _ _ {_} _.
-Global Hint Mode AllocAlive + + + + - : typeclass_instances.
+Arguments alloc_alive_alive {_ _ _} _ _ _ {_} _ _.
+Global Hint Mode AllocAlive + + + + + + + - : typeclass_instances.
 
-Definition type_alive `{!typeG Σ} (ty : type) (β : own_state) : iProp Σ :=
-  □ (∀ l, ty.(ty_own) β l -∗ alloc_alive_loc l).
+Definition type_alive `{!typeG OK_ty Σ} {cs : compspecs} (ty : type) (β : own_state) n : assert :=
+  □ (∀ l, ty.(ty_own) β l -∗ alloc_alive_loc l n).
 Notation type_alive_own ty := (type_alive ty Own).
 
 Section alloc_alive.
-  Context `{!typeG Σ}.
+  Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
   Lemma movable_alloc_alive ty l ot mt :
-    (ot_layout ot).(ly_size) ≠ 0%nat →
     ty.(ty_has_op_type) ot mt →
-    ty.(ty_own) Own l -∗ alloc_alive_loc l.
+    ty.(ty_own) Own l -∗ alloc_alive_loc l (sizeof ot).
   Proof.
-    iIntros (??) "Hl". iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
-    iDestruct (ty_size_eq with "Hv") as %Hv; [done|].
-    iApply heap_mapsto_alive => //. by rewrite Hv.
+    iIntros (?) "Hl". iDestruct (ty_aligned with "Hl") as %Hl; [done|].
+    iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
+    iPoseProof (data_at_rec_alloc with "Hl") as "?"; try done; try apply Hl.
+    destruct Hl as (_ & _ & Hsize & _).
+    simpl in Hsize; rep_lia.
   Qed.
 
-  Global Instance intro_persistent_alloc_global l:
+  (*Global Instance intro_persistent_alloc_global l:
     IntroPersistent (alloc_global l) (alloc_global l).
+  Proof. constructor. by iIntros "#H !>". Qed.*)
+
+  Global Instance intro_persistent_type_alive ty β n:
+    IntroPersistent (type_alive ty β n) (type_alive ty β n).
   Proof. constructor. by iIntros "#H !>". Qed.
 
-  Global Instance intro_persistent_type_alive ty β:
-    IntroPersistent (type_alive ty β) (type_alive ty β).
-  Proof. constructor. by iIntros "#H !>". Qed.
-
-  Global Instance AllocAlive_simpl_and ty β P P' `{!AllocAlive ty β P'} `{!IsEx P} :
-    SimplAndUnsafe (AllocAlive ty β P) (P = P').
+  Global Instance AllocAlive_simpl_and ty β n P P' `{!AllocAlive ty β n P'} `{!IsEx P} :
+    SimplAndUnsafe (AllocAlive ty β n P) (P = P').
   Proof. by move => ->. Qed.
 End alloc_alive.
 
-Global Typeclasses Opaque type_alive.*)
+Global Typeclasses Opaque type_alive.
 
 Notation "l ◁ₗ{ β } ty" := (ty_own ty β l) (at level 15, format "l  ◁ₗ{ β }  ty") : bi_scope.
 Notation "l ◁ₗ ty" := (ty_own ty Own l) (at level 15) : bi_scope.

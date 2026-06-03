@@ -385,13 +385,6 @@ Ltac liRJudgement :=
       (* notypeclasses refine (tac_fast_apply (type_addr_of_place _ _ _ _) _); [solve [refine _] |] *)
   end.
 
-(*(* deal with objective modalities. This is ad-hoc for now *)
-Ltac liObj :=
-  match goal with
-  | |- envs_entails _ (<obj> _) =>
-    iModIntro
-  end.*)
-
 (* This does everything *)
 Ltac liRStep :=
   liEnsureInvariant;
@@ -403,7 +396,6 @@ Ltac liRStep :=
     (* | liRIntroduceTypedStmt *)
     | liRExpr
     | liRJudgement
-    (*| liObj *)
     | liStep
     ];
   liSimpl.

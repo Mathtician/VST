@@ -17,6 +17,7 @@ Ltac liSimpl :=
   try progress simpl;
   (* refold monPred ops: probably because of a simpl never bug fixed in Rocq 9.1 *)
   change (@monpred.monPred_defs.monPred_wand ?A ?B) with (@bi_wand (monpred.monPredI A B));
+  change (@monpred.monPred_defs.monPred_and ?A ?B) with (@bi_and (monpred.monPredI A B));
   change (@monpred.monPred_defs.monPred_exist ?A ?B) with (@bi_exist (monpred.monPredI A B)).
 
 Ltac liUnfoldLetGoal :=

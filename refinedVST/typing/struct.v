@@ -622,25 +622,32 @@ Section struct.
         intros ->%jmeq_lemmas.JMeq_eq => //.
   Qed.
 
-(*  Global Instance struct_loc_in_bounds sl tys β : LocInBounds (struct sl tys) β (ly_size sl).
+  Global Instance struct_loc_in_bounds sl tys β : LocInBounds (struct sl tys) β (Z.to_nat (sizeof (Tstruct sl noattr))).
   Proof.
-    constructor. by iIntros (l) "(_&_&?&_)".
+    constructor. iIntros (l) "(%&_)".
+    by iApply has_layout_in_bounds.
   Qed.
 
-  Global Instance struct_alloc_alive sl tys β P `{!TCExists (λ ty, AllocAlive ty β P) tys} :
-    AllocAlive (struct sl tys) β P.
+  Transparent field_offset.
+
+  Global Instance struct_alloc_alive sl ty tys β P `{!AllocAlive ty β n P} :
+    AllocAlive (struct sl (ty :: tys)) β n P.
   Proof.
-    revert select (TCExists _ _).
-    rewrite TCExists_Exists Exists_exists => -[x [/(list_elem_of_lookup_1 _ _) [i Hx] ?]].
-    constructor. iIntros (l) "HP Hl".
-    iDestruct (struct_focus with "Hl") as "[Hl _]".
+    constructor. iIntros (l) "HP (% & Hl)".
+    iDestruct (struct_focus with "[$Hl //]") as "[Hl _]".
     iDestruct (big_sepL2_length with "Hl") as %Hlen.
-    have [|n Hn] := lookup_lt_is_Some_2 (field_names (sl_members sl)) i.
-    { rewrite Hlen. by apply: lookup_lt_Some. }
-    iDestruct (big_sepL2_lookup with "Hl") as "Hl" => //.
-    iDestruct (alloc_alive_alive with "HP Hl") as "Hl".
-    by iApply (alloc_alive_loc_mono with "Hl").
-  Qed. *)
+    destruct (co_members (get_co sl)) eqn: Hms; inv Hlen; simpl.
+    iDestruct "Hl" as "[Hl _]".
+    rewrite /GetMemberLoc /= /field_offset_rec Hms /=.
+    lapply (nested_pred_lemmas.complete_Tstruct_plain sl noattr); last apply H.
+    rewrite Hms /=; destruct m; last done; intros _.
+    rewrite /=; destruct (ident_eq) => //.
+    rewrite align_0; last apply alignof_pos.
+    rewrite Ptrofs.add_zero.
+    destruct l; iApply (alloc_alive_alive with "HP Hl"); done.
+  Qed.
+
+  Opaque field_offset.
 
   Lemma struct_mono A i tys1 tys2 l β T:
     subsume (l ◁ₗ{β} struct i tys1) (λ x : A, l ◁ₗ{β} struct i (tys2 x)) T :-

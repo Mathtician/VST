@@ -89,8 +89,8 @@ Section optional.
   Global Instance optional_loc_in_bounds ty e ot β n `{!LocInBounds ty β n} `{!LocInBounds ot β n}:
     LocInBounds (e @ optional ty ot) β n.
   Proof.
-    constructor. { by destruct LocInBounds0. } rewrite /with_refinement /=. iIntros (l) "Hl".
-    iDestruct "Hl" as "[[_ Hl]|[_ Hl]]"; by iApply (loc_in_bounds_in_bounds with "Hl").
+    constructor. rewrite /with_refinement /=. iIntros (l) "Hl".
+    iDestruct "Hl" as "[[% Hl]|[% Hl]]"; by iApply (loc_in_bounds_in_bounds with "Hl").
   Qed.
 
   (* We could add rules like *)
@@ -327,7 +327,7 @@ Section optionalO.
   Global Instance optionalO_loc_in_bounds A (ty : A → type) e ot β n `{!∀ x, LocInBounds (ty x) β n} `{!LocInBounds ot β n}:
     LocInBounds (e @ optionalO ty ot) β n.
   Proof.
-    constructor. { by destruct LocInBounds0. } iIntros (l) "Hl". unfold optionalO; simpl_type.
+    constructor. iIntros (l) "Hl". unfold optionalO; simpl_type.
     destruct e; by iApply (loc_in_bounds_in_bounds with "Hl").
   Qed.
 

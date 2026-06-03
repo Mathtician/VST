@@ -1184,19 +1184,18 @@ Section typing.
     := {| rt_fic := FindValP (repinject cty v_rep) |}.
   Global Instance related_to_loc_in_bounds A l n : RelatedTo (λ x : A, loc_in_bounds l (n x)) | 100
     := {| rt_fic := FindLocInBounds l |}.
-  (*Global Instance related_to_alloc_alive A l : RelatedTo (λ x : A, alloc_alive_loc l) | 100
+  Global Instance related_to_alloc_alive A l n : RelatedTo (λ x : A, alloc_alive_loc l n) | 100
     := {| rt_fic := FindAllocAlive l |}.
 
-  Global Program Instance learnalignment_none β ty : LearnAlignment β ty None | 1000.
+  (*Global Program Instance learnalignment_none β ty : LearnAlignment β ty None | 1000.
   Next Obligation. iIntros (???) "?". done. Qed.*)
 
-  (* Our loc_in_bounds is connected with ∧, and subsume is locked to ∗.
   Lemma subsume_loc_in_bounds A ty β l (n m : nat) `{!LocInBounds ty β m} T :
-    (l ◁ₗ{β} ty -∗ ⌜n ≤ m⌝ ∗ ∃ x, T x)
+    (l ◁ₗ{β} ty -∗ <affine> ⌜n ≤ m⌝ ∗ ∃ x, T x)
     ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, loc_in_bounds l n) T.
   Proof.
     iIntros "HT Hl".
-    iDestruct (loc_in_bounds_in_bounds with "Hl") as "?".
+    iDestruct (loc_in_bounds_in_bounds with "Hl") as "#?".
     iDestruct ("HT" with "Hl") as (??) "?". iExists _. iFrame.
     iApply loc_in_bounds_shorten; last done. lia.
   Qed.
@@ -1205,48 +1204,48 @@ Section typing.
 
   Lemma subsume_loc_in_bounds_evar A ty β l (n : A → nat) (m : nat)
     `{!LocInBounds ty β m} T :
-    (l ◁ₗ{β} ty -∗ ∃ x, ⌜n x = m⌝ ∗ T x)
+    (l ◁ₗ{β} ty -∗ ∃ x, <affine> ⌜n x = m⌝ ∗ T x)
     ⊢ subsume (l ◁ₗ{β} ty) (λ x, loc_in_bounds l (n x)) T.
   Proof.
     iIntros "HT Hl".
-    iDestruct (loc_in_bounds_in_bounds with "Hl") as "?".
+    iDestruct (loc_in_bounds_in_bounds with "Hl") as "#?".
     iDestruct ("HT" with "Hl") as (??) "?". iExists _. iFrame.
     iApply loc_in_bounds_shorten; last done. lia.
   Qed.
   Definition subsume_loc_in_bounds_evar_inst := [instance subsume_loc_in_bounds_evar].
-  Global Existing Instance subsume_loc_in_bounds_evar_inst | 20.*)
+  Global Existing Instance subsume_loc_in_bounds_evar_inst | 20.
 
   (*Lemma subsume_alloc_alive_global A l T :
     (∃ x, T x)
     ⊢ subsume (alloc_global l) (λ x : A, alloc_alive_loc l) T.
   Proof. iIntros "[% ?] Hl". iExists _. iFrame. by iApply (alloc_global_alive). Qed.
   Definition subsume_alloc_alive_global_inst := [instance subsume_alloc_alive_global].
-  Global Existing Instance subsume_alloc_alive_global_inst.
+  Global Existing Instance subsume_alloc_alive_global_inst.*)
 
-  Lemma subsume_alloc_alive A ty β l P `{!AllocAlive ty β P} T :
+  Lemma subsume_alloc_alive A ty β n l P `{!AllocAlive ty β n P} T :
     (* You don't get l ◁ₗ{β} ty back because alloc_alive is not persistent. *)
     (P ∗ ∃ x, T x)
-    ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, alloc_alive_loc l) T.
+    ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, alloc_alive_loc l n) T.
   Proof. iIntros "[HP [% ?]] Hl". iExists _. iFrame. by iApply (alloc_alive_alive with "HP"). Qed.
   Definition subsume_alloc_alive_inst := [instance subsume_alloc_alive].
   Global Existing Instance subsume_alloc_alive_inst | 5.
 
-  Lemma subsume_alloc_alive_type_alive A ty β l `{!CheckOwnInContext (type_alive ty β)} T :
-    (type_alive ty β ∗ ∃ x, T x)
-    ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, alloc_alive_loc l) T.
+  Lemma subsume_alloc_alive_type_alive A ty β n l `{!CheckOwnInContext (type_alive ty β n)} T :
+    (type_alive ty β n ∗ ∃ x, T x)
+    ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, alloc_alive_loc l n) T.
   Proof. iIntros "[Ha [% ?]] Hl". rewrite /type_alive. iExists _. iFrame. by iApply "Ha". Qed.
   Definition subsume_alloc_alive_type_alive_inst := [instance subsume_alloc_alive_type_alive].
   Global Existing Instance subsume_alloc_alive_type_alive_inst | 10.
 
-  Lemma simplify_goal_type_alive ty β P `{!AllocAlive ty β P} T :
+  Lemma simplify_goal_type_alive ty β n P `{!AllocAlive ty β n P} T :
     □ P ∗ T
-    ⊢ simplify_goal (type_alive ty β) T.
+    ⊢ simplify_goal (type_alive ty β n) T.
   Proof.
     iIntros "[#HP HT]". iFrame. rewrite /type_alive. iIntros "!>" (?) "Hl".
       by iApply (alloc_alive_alive with "HP Hl").
   Qed.
   Definition simplify_goal_type_alive_inst := [instance simplify_goal_type_alive with 0%N].
-  Global Existing Instance simplify_goal_type_alive_inst.*)
+  Global Existing Instance simplify_goal_type_alive_inst.
 
   Lemma subsume_loc_in_bounds_leq A (l : loc) (n1 n2 : nat) T :
     (<affine> ⌜n2 ≤ n1⌝%nat ∗ ∃ x, T x)

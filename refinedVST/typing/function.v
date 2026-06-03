@@ -171,9 +171,9 @@ Section function.
   Definition function_ptr (fp : A → fn_params) : rtype _ :=
     RType (function_ptr_type fp).
 
-  Global Program Instance copyable_function_ptr cty p fp : Copyable cty (p @ function_ptr fp).
+  Global Program Instance copyable_function_ptr p fp : Copyable (p @ function_ptr fp).
   Next Obligation.
-    iIntros (cty p fp E l ? (? & He & ->)). iDestruct 1 as (fn Hl) "(Hl&%He2&#?)".
+    iIntros (p fp E cty l ? (? & He & ->)). iDestruct 1 as (fn Hl) "(Hl&%He2&#?)".
     eapply fntbl_entry_inj in He as <-; last done.
     iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "(_ & % & Hl)" => //.
      iFrame; iFrame "#". iModIntro. unfold has_layout_loc. do 3 iSplit => //.
@@ -182,9 +182,9 @@ Section function.
      iModIntro. by iSplit.
   Qed.
 
-  Global Instance function_ptr_defined cty p fp : DefinedTy cty (p @ function_ptr fp).
+  Global Instance function_ptr_defined p fp : DefinedTy (p @ function_ptr fp).
   Proof.
-    iIntros (?) "(% & (_ & %) & ?)".
+    iIntros (??) "(% & (_ & %) & ?)".
     iPureIntro; intros ->; by destruct cty.
   Qed.
 
@@ -481,19 +481,19 @@ Section inline_function.
   Definition inline_function_ptr (fn : function) : rtype _ :=
     RType (inline_function_ptr_type fn).
 
-  Global Program Instance copyable_inline_function_ptr cty p fn : Copyable (tptr cty) (p @ inline_function_ptr fn).
+  Global Program Instance copyable_inline_function_ptr p fn : Copyable (p @ inline_function_ptr fn).
   Next Obligation.
-    iIntros (? p fn E l ?). iDestruct 1 as "(%&Hl&%)".
+    iIntros (p fn E ? l ? (t & ->)). iDestruct 1 as "(%&Hl&%)".
     iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "[% [% Hl]]" => //.
-    rewrite (mapsto_tptr _ _ _ cty); iFrame. iModIntro. rewrite has_layout_loc_tptr. do 3 iSplit => //.
+    rewrite (mapsto_tptr _ _ _ t); iFrame. iModIntro. rewrite has_layout_loc_tptr. do 3 iSplit => //.
     rewrite (mapsto_tptr _ _ _ tvoid).
     iIntros "Hl"; iMod (heap_mapsto_own_state_from_mt with "Hl") as "$"; auto.
   Qed.
 
-  Global Instance inline_function_ptr_defined p fn : DefinedTy (tptr tvoid) (p @ inline_function_ptr fn).
+  Global Instance inline_function_ptr_defined p fn : DefinedTy (p @ inline_function_ptr fn).
   Proof.
-    iIntros (?) "(% & %)".
-    by destruct v.
+    iIntros (??) "(% & %)".
+    by destruct cty, v.
   Qed.
 
 (*  Lemma type_call_inline_fnptr l v vl tys fn T:

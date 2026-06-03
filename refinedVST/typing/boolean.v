@@ -100,9 +100,9 @@ Section generic_boolean.
   Definition generic_boolean (stn: bool_strictness) (it: Ctypes.type) : rtype _ :=
     RType (generic_boolean_type stn it).
 
-  Global Program Instance generic_boolean_copyable b stn it : Copyable it (b @ generic_boolean stn it).
+  Global Program Instance generic_boolean_copyable b stn it : Copyable (b @ generic_boolean stn it).
   Next Obligation.
-    iIntros (???????) "(%v&%n&%&%&%&%&Hl)".
+    iIntros (????????) "(%v&%n&%&%&%&%&Hl)".
     simpl in *; subst.
     iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "[% Hl]" => //.
     iSplitR; first done. iExists q, (valinject it v); iFrame.
@@ -115,12 +115,12 @@ Section generic_boolean.
     - by eapply val_to_Z_by_value.
   Qed.
 
-  Global Instance generic_boolean_defined stn it : DefinedTy it (generic_boolean stn it).
+  Global Instance generic_boolean_defined stn it : DefinedTy (generic_boolean stn it).
   Proof.
-    iIntros (?).
+    iIntros (??).
     rewrite /ty_own_val_at /ty_own_val /= /ty_own_val /=.
-    iIntros "(%&_&%&%&%&%)".
-    destruct it; try done; destruct v; try done.
+    iIntros "(%&<-&%&%&%&%)".
+    destruct cty; try done; destruct v; try done.
   Qed.
 
   (*  Global Instance alloc_alive_generic_boolean b stn it β: AllocAlive (b @ generic_boolean stn it) β True.

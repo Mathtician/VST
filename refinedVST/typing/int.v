@@ -185,10 +185,10 @@ Section int.
     : LearnAlignment β (n @ int it) (Some (ly_align it)).
   Next Obligation. by iIntros (β it n ?) "(%&%&%&?)". Qed. *)
 
-  Global Instance int_defined it n: DefinedTy it (n @ int it).
+  Global Instance int_defined it n: DefinedTy (n @ int it).
   Proof.
-    iIntros (?) "(_ & _ & %)".
-    destruct it; try done; destruct v; try done.
+    iIntros (??) "(<- & _ & %)".
+    destruct cty; try done; destruct v; try done.
   Qed.
 
   Lemma simplify_int it v n (T : assert):
@@ -286,9 +286,9 @@ Section int.
 
   (* TODO: make a simple type as in lambda rust such that we do not
   have to reprove this everytime? *)
-  Global Program Instance int_copyable x it : Copyable it (x @ int it).
+  Global Program Instance int_copyable x it : Copyable (x @ int it).
   Next Obligation.
-    iIntros (??????) "(%v&%Hv&%Hn&%Hl&Hl)".
+    iIntros (???????) "(%v&%Hv&%Hn&%Hl&Hl)".
     simpl in *; subst.
     iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "[% [% Hl]]" => //.
     iSplitR => //. iExists q, (valinject it v). iFrame. iModIntro.
@@ -360,7 +360,7 @@ Section programs.
     rewrite H; intros ?; by apply in_range_i2v.
   Qed.
   Definition type_val_int_inst := [instance type_val_int].
-  Global Existing Instance type_val_int_inst.
+  Global Existing Instance type_val_int_inst | 2.
 
   Lemma type_val_int_i32 (n:Integers.int) T :
     typed_value tint (Vint n) T :-
@@ -1276,9 +1276,9 @@ Section offsetof.
     Unshelve. done.
   Qed.
 
-  Global Program Instance offsetof_copyable s m : Copyable size_t (offsetof s m).
+  Global Program Instance offsetof_copyable s m : Copyable (offsetof s m).
   Next Obligation.
-    iIntros (s m E l ?). iDestruct 1 as (n Hn) "Hl".
+    iIntros (s m E cty l ? Hcty). simpl in Hcty; subst. iDestruct 1 as (n Hn) "Hl".
     iMod (copy_shr_acc with "Hl") as (???) "(%&Hl&H2&H3)" => //.
     iModIntro. iSplitR => //. iExists _, _.
     iFrame "Hl".
@@ -1291,9 +1291,9 @@ Section offsetof.
     iExists _. iFrame "H3". done.
   Qed.
 
-  Global Instance offsetof_defined s m : DefinedTy size_t (offsetof s m).
+  Global Instance offsetof_defined s m : DefinedTy (offsetof s m).
   Proof.
-    iIntros (?) "(% & % & % & H)".
+    iIntros (??) "(% & % & % & H)".
     iApply (defined_ty with "H").
   Qed.
 

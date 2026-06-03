@@ -102,9 +102,9 @@ Section optional.
   sure that the other rules in this file work for you, which don't
   cause unnecssary case splits. *)
 
-  Global Instance optional_defined cty e ty optty `{!DefinedTy cty ty} `{!DefinedTy cty optty}: DefinedTy cty (e @ optional ty optty).
+  Global Instance optional_defined e ty optty `{!DefinedTy ty} `{!DefinedTy optty}: DefinedTy (e @ optional ty optty).
   Proof.
-    iIntros (?) "[(%&H)|(%&H)]"; iApply (defined_ty with "H").
+    iIntros (??) "[(%&H)|(%&H)]"; iApply (defined_ty with "H").
   Qed.
 
   (* TODO: should be allow different opttys? *)
@@ -265,9 +265,9 @@ Section optional.
   Definition type_neq_optional_inst := [instance type_neq_optional].
   Global Existing Instance type_neq_optional_inst.
 
-  Global Program Instance optional_copyable b cty ty optty `{!Copyable cty ty} `{!Copyable cty optty} : Copyable cty (b @ optional ty optty).
+  Global Program Instance optional_copyable b ty optty `{!Copyable ty} `{!Copyable optty} : Copyable (b @ optional ty optty).
   Next Obligation.
-    iIntros (b cty ty optty ? ? E l ? [??]) "[[% Hl]|[% Hl]]".
+    iIntros (b ty optty ? ? E l ?? [??]) "[[% Hl]|[% Hl]]".
     all: iMod (copy_shr_acc with "Hl") as (?? ?) "[?[?[? H]]]" => //.
     all: iModIntro; iSplit => //; rewrite /=?opt_alt_sz => //; iExists _, _; iFrame.
     - iSplit; first by iLeft; iFrame.
@@ -493,7 +493,7 @@ Section optionalO.
   Definition read_optionalO_case_inst := [instance read_optionalO_case].
   Global Existing Instance read_optionalO_case_inst | 1001.
 
-  Global Program Instance optionalO_copyable A cty (ty : A → type) optty x `{!∀ x, Copyable cty (ty x)} `{!Copyable cty optty} : Copyable cty (x @ optionalO ty optty).
+  Global Program Instance optionalO_copyable A (ty : A → type) optty x `{!∀ x, Copyable (ty x)} `{!Copyable optty} : Copyable (x @ optionalO ty optty).
   Next Obligation.
     destruct x; unfold optionalO; simpl_type; intros; apply _.
   Qed.
@@ -501,15 +501,15 @@ Section optionalO.
     destruct x; unfold optionalO; simpl_type; intros; apply _.
   Qed.
   Next Obligation.
-    iIntros (A ? ty optty x ? ? E l ? [Hty ?]). unfold optionalO; simpl_type. destruct x.
+    iIntros (A ty optty x ? ? E l ?? [Hty ?]). unfold optionalO; simpl_type. destruct x.
     all: iIntros "Hl".
     all: iMod (copy_shr_acc with "Hl") as (Hl ? ? ?) "[?[??]]" => //; try apply: Hty; iSplitR => //.
     all: iModIntro; iExists _, _; by iFrame.
   Qed.
 
-  Global Instance optionalO_defined A cty (ty : A → type) optty x `{!∀ x, DefinedTy cty (ty x)} `{!DefinedTy cty optty} : DefinedTy cty (x @ optionalO ty optty).
+  Global Instance optionalO_defined A (ty : A → type) optty x `{!∀ x, DefinedTy (ty x)} `{!DefinedTy optty} : DefinedTy (x @ optionalO ty optty).
   Proof.
-    iIntros (?) "Hv".
+    iIntros (??) "Hv".
     destruct x; unfold optionalO; simpl_type; iPoseProof (defined_ty with "Hv") as "$".
   Qed.
 End optionalO.

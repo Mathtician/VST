@@ -35,16 +35,16 @@ Section value.
   Lemma val_type_by_value t: type_is_by_value (val_type t) = true.
   Proof. by destruct t. Qed.
   
-  Global Instance value_defined ot v `{!TCDone (v ≠ Vundef)}: DefinedTy ot (value ot v).
+  Global Instance value_defined ot v `{!TCDone (v ≠ Vundef)}: DefinedTy (value ot v).
   Proof.
-    iIntros (? (_ & ? & _)).
+    iIntros (? ? (_ & ? & _)).
     apply valinject_inj in H as ->; try done.
     apply val_type_by_value.
   Qed.
 
-  Global Program Instance value_copyable ot v: Copyable ot (value ot v).
+  Global Program Instance value_copyable ot v: Copyable (value ot v).
   Next Obligation.
-    iIntros (??????) "(% & % & Hl)".
+    iIntros (?????? (-> & ?)) "(% & % & Hl)".
     iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "[% [% Hl]]" => //.
     iSplitR => //. iExists q, (valinject ot v). iFrame. iModIntro.
     repeat iSplit => //.
@@ -57,7 +57,8 @@ Section value.
     (<affine> ⌜v = valinject ot p⌝ -∗ <affine>⌜v `has_layout_val` ot⌝ -∗ ⟦v ◁ᵥ|ot| value ot p⟧ -∗ T)
     ⊢ simplify_hyp (v ◁ᵥ|ot| value ot p) T.
   Proof. iIntros "HT [% [% %]]". rewrite do_not_simplify_eq /=. by iApply "HT". Qed.
-  Definition value_simplify_inst := [instance value_simplify with 0%N].
+  Definition value_simplify_inst := [instance value_simplify with 1%N].
+  (* leave room to simplify specific constants to null *)
   Global Existing Instance value_simplify_inst.
 
   Lemma value_simplify_goal ot v p T:
@@ -121,7 +122,7 @@ Section value.
   Definition value_merge_inst := [instance value_merge with 50%N].
   Global Existing Instance value_merge_inst | 20. *)
 
-Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!DefinedTy ot ty}
+Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!DefinedTy ty}
   `{!TCDone (type_is_by_value ot = true)} T:
     (∀ v, T v (value ot v) ty)
     ⊢ typed_read_end a E l Own ty ot T.
@@ -132,7 +133,7 @@ Lemma type_read_move l ty ot a E `{!TCDone (ty.(ty_has_op_type) ot MCId)} `{!Def
     iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
     iDestruct (ty_size_eq with "Hv") as %?; [done|].
     (* iDestruct (ty_memcast_compat_id with "Hv") as %Hid; [done|]. *)
-    iDestruct (defined_ty (repinject ot v) with "[Hv]") as %?.
+    iDestruct (defined_ty ot (repinject ot v) with "[Hv]") as %?.
     { rewrite /val_type TCDone1 valinject_repinject //. }
     iExists _, (repinject ot v), _. rewrite /val_type TCDone1 valinject_repinject //.
     iFrame. do 3 iSplit => //=.

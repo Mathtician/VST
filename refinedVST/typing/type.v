@@ -126,6 +126,8 @@ Coercion adr2val : address >-> val.
 Definition val2adr (v: val) : option address := 
   match v with Vptr b ofs => Some (b, ofs) | _ => None end.
 
+Global Instance ptrofs_inhabited : Inhabited ptrofs := populate Ptrofs.zero.
+
 (* fix handling of volatile types for has_layout_val *)
 Definition value_fits {cs: compspecs}: forall t, reptype t -> Prop :=
   type_induction.type_func (fun t => reptype t -> Prop)
@@ -563,11 +565,11 @@ Global Existing Instance ty_shr_pers.
   Qed.
 End memcast.*)
 
-Class Copyable `{!typeG OK_ty Σ} {cs : compspecs} (cty:Ctypes.type) (ty : type) := {
-  copy_own_val_persistent v : Persistent (ty.(ty_own_val) cty v);
-  copy_own_val_affine v : Affine (ty.(ty_own_val) cty v);
+Class Copyable `{!typeG OK_ty Σ} {cs : compspecs} (ty : type) := {
+  copy_own_val_persistent cty v : Persistent (ty.(ty_own_val) cty v);
+  copy_own_val_affine cty v : Affine (ty.(ty_own_val) cty v);
   copy_own_affine l : Affine (ty.(ty_own) Shr l); (* should always be true? *)
-  copy_shr_acc E l :
+  copy_shr_acc E cty l :
     mtE ⊆ E → ty.(ty_has_op_type) cty MCCopy →
     ty.(ty_own) Shr l ={E}=∗ <affine> ⌜l `has_layout_loc` cty⌝ ∗
        ∃ q' vl, <affine> ⌜readable_share q'⌝ ∗ l ↦{q'}|cty| vl ∗ ty.(ty_own_val) cty vl ∗ (l ↦{q'}|cty| vl ={E}=∗ ty.(ty_own) Shr l)
@@ -752,9 +754,9 @@ Coercion ty_of_rty : rtype >-> type.
 Section rmovable.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
-  Global Program Instance copyable_ty_of_rty A r cty `{!∀ x : A, Copyable cty (x @ r)} : Copyable cty r.
+  Global Program Instance copyable_ty_of_rty A r `{!∀ x : A, Copyable (x @ r)} : Copyable r.
   Next Obligation.
-    iIntros (A r cty ? E l ?). iDestruct 1 as (x) "Hl".
+    iIntros (A r ? E l ?). iDestruct 1 as (x) "Hl".
     iMod (copy_shr_acc with "Hl") as (? q' vl) "(%&?&?&H)" => //.
     iSplitR => //. iExists _, _. iFrame. iModIntro. iSplit => //.
     iIntros "↦". iMod ("H" with "↦") as "Hl".

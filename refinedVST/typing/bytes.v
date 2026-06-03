@@ -274,10 +274,10 @@ Section uninit.
   Definition type_read_move_copy_inst := [instance type_read_move_copy].
   Global Existing Instance type_read_move_copy_inst | 70. *)
 
-  Global Program Instance uninit_copyable t : Copyable t (uninit t).
+  Global Program Instance uninit_copyable t: Copyable (uninit t).
   Next Obligation.
   Proof.
-    iIntros (?????) "(% & % & % & Hl)".
+    iIntros (????? [=]) "(% & % & % & Hl)"; subst.
     iMod (heap_mapsto_own_state_to_mt with "Hl") as (q) "[% [% Hl]]" => //.
     iSplitR => //. iExists q, v. iFrame. iModIntro.
     repeat iSplit => //.

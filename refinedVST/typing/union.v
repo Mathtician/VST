@@ -162,21 +162,21 @@ Section union.
   Next Obligation. iIntros (??????->?) "Hl Hv" => /=. by iApply (ty_ref _ _ MCNone with "[] Hl Hv"). Qed.
   (* Next Obligation. iIntros (???????) "Hv" => /=. by iApply (ty_memcast_compat (_ @ int size_t) with "[Hv]"). Qed. *)
 
-  Global Program Instance copyable_tunion_tag ti x : Copyable size_t (tunion_tag ti x).
+  Global Program Instance copyable_tunion_tag ti x : Copyable (tunion_tag ti x).
   Next Obligation. move => *. unfold tunion_tag; simpl_type.
     rewrite /ty_own_val_at /ty_own_val /=. apply _. Qed.
   Next Obligation. move => *. unfold tunion_tag; simpl_type.
     rewrite /ty_own_val_at /ty_own_val /=. apply _. Qed.
   Next Obligation. move => *. unfold tunion_tag; simpl_type. apply _. Qed.
   Next Obligation.
-    rewrite /ty_own/ty_own_val/= => ??????/=.
+    rewrite /ty_own/ty_own_val/= => ??????->/=.
     iIntros "Hl". iMod (copy_shr_acc _ _ with "Hl") as (???) "Hc" => //.
     iSplitR => //. iExists _, _. by iFrame.
   Qed.
 
-  Global Instance tunion_tag_defined ti x : DefinedTy size_t (tunion_tag ti x).
+  Global Instance tunion_tag_defined ti x : DefinedTy (tunion_tag ti x).
   Proof.
-    iIntros (?) "H"; rewrite /tunion_tag; simpl_type.
+    iIntros (??) "H"; rewrite /tunion_tag; simpl_type.
     iApply (defined_ty with "H").
   Qed.
 

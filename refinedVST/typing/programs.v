@@ -154,12 +154,12 @@ Section judgements.
   Class SimpleSubsumeVal cty (ty1 ty2 : type) (P : assert) : Prop :=
     simple_subsume_val v: P ⊢ v ◁ᵥ|cty| ty1 -∗ v ◁ᵥ|cty| ty2.
 
-  Class DefinedTy cty ty : Prop :=
-    defined_ty v: v ◁ᵥₐₗ|cty| ty -∗ ⌜v ≠ Vundef⌝.
+  Class DefinedTy ty : Prop :=
+    defined_ty cty v: v ◁ᵥₐₗ|cty| ty -∗ ⌜v ≠ Vundef⌝.
 
-  Global Program Instance defined_ty_of_rty A r cty `{!∀ x : A, DefinedTy cty (x @ r)} : DefinedTy cty r.
+  Global Program Instance defined_ty_of_rty A r `{!∀ x : A, DefinedTy (x @ r)} : DefinedTy r.
   Next Obligation.
-    iIntros (A r cty ? v). rewrite /ty_own_val_at /ty_own_val /=.
+    iIntros (A r ? cty v). rewrite /ty_own_val_at /ty_own_val /=.
     iDestruct 1 as (x) "Hl". by iApply H.
   Qed.
 
@@ -168,15 +168,15 @@ Section judgements.
   step. We need this because copying duplicates a type and we want to
   make it as specific as we can before we do the duplication (e.g.
   destruct all existentials in it). *)
-  Definition copy_as (l : address) (β : own_state) (cty:Ctypes.type) (ty : type) (T : type → assert) : assert :=
-    (l ◁ₗ{β} ty -∗ ∃ ty', l ◁ₗ{β} ty' ∗ <affine> ⌜Copyable cty ty'⌝ ∗ T ty')%I.
-  Class CopyAs (l : address) (β : own_state) (cty:Ctypes.type) (ty : type) : Type :=
-    copy_as_proof T : iProp_to_Prop (copy_as l β cty ty T).
+  Definition copy_as (l : address) (β : own_state) (ty : type) (T : type → assert) : assert :=
+    (l ◁ₗ{β} ty -∗ ∃ ty', l ◁ₗ{β} ty' ∗ <affine> ⌜Copyable ty'⌝ ∗ T ty')%I.
+  Class CopyAs (l : address) (β : own_state) (ty : type) : Type :=
+    copy_as_proof T : iProp_to_Prop (copy_as l β ty T).
 
-  Definition copy_as_defined (l : address) (β : own_state) (cty:Ctypes.type) (ty : type) (T : type → assert) : assert :=
-    (l ◁ₗ{β} ty -∗ ∃ ty', l ◁ₗ{β} ty' ∗ <affine> ⌜Copyable cty ty'⌝ ∗ <affine> ⌜DefinedTy cty ty'⌝ ∗ T ty')%I.
-  Class CopyAsDefined (l : address) (β : own_state) (cty:Ctypes.type) (ty : type) : Type :=
-    copy_as_defined_proof T : iProp_to_Prop (copy_as_defined l β cty ty T).
+  Definition copy_as_defined (l : address) (β : own_state) (ty : type) (T : type → assert) : assert :=
+    (l ◁ₗ{β} ty -∗ ∃ ty', l ◁ₗ{β} ty' ∗ <affine> ⌜Copyable ty'⌝ ∗ <affine> ⌜DefinedTy ty'⌝ ∗ T ty')%I.
+  Class CopyAsDefined (l : address) (β : own_state) (ty : type) : Type :=
+    copy_as_defined_proof T : iProp_to_Prop (copy_as_defined l β ty T).
 
   (* A is the annotation from the code *)
   Definition typed_annot_expr (n : nat) {A} (a : A) (v : val) (P : assert) (T : assert) : assert :=
@@ -325,6 +325,8 @@ Section judgements.
 
   Class TypedUnOp (v : val) (P : assert) (o : Cop.unary_operation) (t cty : Ctypes.type) : Type :=
     typed_un_op_proof T : iProp_to_Prop (typed_un_op v P o t cty T).
+
+  (* typed_cast? *)
 
   Definition typed_exprs f (el : list expr) (tl : list Ctypes.type) (T : list val → list type → assert) : assert :=
     (∀ Φ, (∀ vl (tys : list type), ([∗ list] v;'(cty,ty)∈vl;zip tl tys, v ◁ᵥₐₗ|cty| ty) -∗ T vl tys -∗ Φ vl) -∗ wp_exprs ge ⊤ f el tl Φ).
@@ -721,8 +723,8 @@ Global Hint Extern 0 (IntoPlaceCtx _ _ _ _) => solve_into_place_ctx : typeclass_
 
 Global Hint Mode Learnable + + + + : typeclass_instances.
 (*Global Hint Mode LearnAlignment + + + + - : typeclass_instances.*)
-Global Hint Mode CopyAs + + + + + + + + : typeclass_instances.
-Global Hint Mode CopyAsDefined + + + + + + + + : typeclass_instances.
+Global Hint Mode CopyAs + + + + + + + : typeclass_instances.
+Global Hint Mode CopyAsDefined + + + + + + + : typeclass_instances.
 Global Hint Mode SimpleSubsumePlace + + + + + ! - : typeclass_instances.
 Global Hint Mode SimpleSubsumeVal + + + + + ! ! - : typeclass_instances.
 Global Hint Mode TypedIf + + + + + : typeclass_instances.
@@ -1026,8 +1028,8 @@ Ltac generate_i2p_instance_to_tc_hook arg c ::=
   | typed_assert ?x1 ?x2 ?x3 => constr:(TypedAssert x1 x2 x3)
   | typed_switch ?x1 ?x2 ?x3 => constr:(TypedSwitch x1 x2 x3)
   | typed_annot_stmt ?x1 ?x2 ?x3 => constr:(TypedAnnotStmt x1 x2 x3)
-  | copy_as ?x1 ?x2 ?x3 ?x4 => constr:(CopyAs x1 x2 x3 x4)
-  | copy_as_defined ?x1 ?x2 ?x3 ?x4 => constr:(CopyAsDefined x1 x2 x3 x4)
+  | copy_as ?x1 ?x2 ?x3 => constr:(CopyAs x1 x2 x3)
+  | copy_as_defined ?x1 ?x2 ?x3 => constr:(CopyAsDefined x1 x2 x3)
   | _ => fail "unknown judgement" c
   end.
 
@@ -1098,6 +1100,15 @@ Section typing.
   Definition find_in_context_type_val_P_id_inst :=
     [instance find_in_context_type_val_P_id with FICSyntactic].
   Global Existing Instance find_in_context_type_val_P_id_inst | 1.
+
+  (* Can this be a backup for cases where ᵥₐₗ trips up FICSyntactic? *)
+  Lemma find_in_context_type_val_P_id' cty v (T:assert->assert):
+    (∃ ty, v ◁ᵥₐₗ|cty| ty ∗ T (v ◁ᵥₐₗ|cty| ty))
+    ⊢ find_in_context (FindValP v) T.
+  Proof. iDestruct 1 as (ty) "[Hl HT]". iExists (ty_own_val ty _ _) => /=. iFrame. Qed.
+  Definition find_in_context_type_val_P_id'_inst :=
+    [instance find_in_context_type_val_P_id' with Empty_set].
+  Global Existing Instance find_in_context_type_val_P_id'_inst | 20.
 
   Lemma find_in_context_type_val_P_loc_id l (T:assert->assert):
     (∃ β ty, l ◁ₗ{β} ty ∗ T (l ◁ₗ{β} ty))
@@ -2073,7 +2084,7 @@ Section typing.
     iApply ("HΦ" with "Hv HT").
   Qed.
 
-  Lemma type_temp_copy x cty ty `{!Copyable (val_type cty) ty} T:
+  Lemma type_temp_copy x cty ty `{!Copyable ty} T:
     (x ◁ₜ| cty | ty -∗ ∀ v, T v ty)
     ⊢ typed_temp x cty ty T.
   Proof.
@@ -2162,7 +2173,7 @@ Section typing.
     iMod ("Hc" with "[$]") as "[? ?]". iExists _. iFrame. by iApply ("HT" with "[$]").
   Qed.
 
-  Lemma type_read_copy a β l ty cty E {HC: CopyAsDefined l β cty ty} (T:val → type → type → assert):
+  Lemma type_read_copy a β l ty cty E {HC: CopyAsDefined l β ty} (T:val → type → type → assert):
     <affine> ⌜type_is_by_value cty = true⌝ ∗
     ((HC (λ ty', <affine> ⌜ty'.(ty_has_op_type) cty MCCopy⌝ ∗ <affine> ⌜mtE ⊆ E⌝ ∗ ∀ v, T v (ty' : type) ty')).(i2p_P))
     ⊢ typed_read_end a E l β ty cty T.
@@ -2178,7 +2189,7 @@ Section typing.
       iFrame "∗Hv". do 2 iSplitR => //=.
       iSplit; first by (rewrite /Tsh; iPureIntro; apply readable_share_top).
       iSplit.
-      { iDestruct (defined_ty with "[Hv]") as %?; last done.
+      { iDestruct (defined_ty cty with "[Hv]") as %?; last done.
         rewrite /val_type H /ty_own_val_at valinject_repinject //. }
       iDestruct ("HT" $! (repinject cty v)) as "T".
       iIntros "Hl #own_v". iFrame.
@@ -2190,7 +2201,7 @@ Section typing.
       iApply fupd_mask_intro; [destruct a; solve_ndisj|]. iIntros "Hclose".
       iExists _, (repinject cty v), _.
       rewrite /val_type H !valinject_repinject /ty_own_val_at //.
-      iDestruct (defined_ty (repinject cty v) with "[Hv]") as %?.
+      iDestruct (defined_ty cty (repinject cty v) with "[Hv]") as %?.
       { rewrite /val_type H /ty_own_val_at valinject_repinject //. }
       iFrame.
       iDestruct ("HT" $! (repinject cty v)) as "HT".
@@ -2266,7 +2277,7 @@ Section typing.
 
   Lemma type_write_own_copy a E ty l2 ty2 v ot (T:type->assert):
     typed_write_end a E ot v ty l2 Own ty2 T where
-    `{!Copyable (val_type ot) ty}
+    `{!Copyable ty}
     `{!TCDone (ty2.(ty_has_op_type) (val_type ot) MCNone)} :-
       exhale <affine> ⌜ty.(ty_has_op_type) (val_type ot) MCNone⌝;
       inhale (v ◁ᵥₐₗ|ot| ty);
@@ -2341,14 +2352,14 @@ Section typing.
   Definition type_place_id_inst := [instance type_place_id].
   Global Existing Instance type_place_id_inst | 20.
 
-  Lemma copy_as_id l β cty ty `{!Copyable cty ty} T:
-    T ty ⊢ copy_as l β cty ty T.
+  Lemma copy_as_id l β ty `{!Copyable ty} T:
+    T ty ⊢ copy_as l β ty T.
   Proof. iIntros "HT Hl". iExists _. by iFrame. Qed.
   Definition copy_as_id_inst := [instance copy_as_id].
   Global Existing Instance copy_as_id_inst | 1000.
 
-  Lemma copy_as_refinement A l β cty (ty : rtype A) {HC: ∀ x, CopyAs l β cty (x @ ty)} T:
-    (∀ x, (HC x T).(i2p_P)) ⊢ copy_as l β cty ty T.
+  Lemma copy_as_refinement A l β (ty : rtype A) {HC: ∀ x, CopyAs l β (x @ ty)} T:
+    (∀ x, (HC x T).(i2p_P)) ⊢ copy_as l β ty T.
   Proof.
     iIntros "HT Hl". unfold ty_of_rty; simpl_type. iDestruct "Hl" as (x) "Hl".
     iSpecialize ("HT" $! x). iDestruct (i2p_proof with "HT") as "HT". by iApply "HT".
@@ -2356,14 +2367,14 @@ Section typing.
   Definition copy_as_refinement_inst := [instance copy_as_refinement].
   Global Existing Instance copy_as_refinement_inst.
 
-  Lemma copy_as_defined_id l β cty ty `{!Copyable cty ty} `{!DefinedTy cty ty} T:
-    T ty ⊢ copy_as_defined l β cty ty T.
+  Lemma copy_as_defined_id l β ty `{!Copyable ty} `{!DefinedTy ty} T:
+    T ty ⊢ copy_as_defined l β ty T.
   Proof. iIntros "HT Hl". iExists _. by iFrame. Qed.
   Definition copy_as_defined_id_inst := [instance copy_as_defined_id].
   Global Existing Instance copy_as_defined_id_inst | 1000.
 
-  Lemma copy_as_defined_refinement A l β cty (ty : rtype A) {HC: ∀ x, CopyAsDefined l β cty (x @ ty)} T:
-    (∀ x, (HC x T).(i2p_P)) ⊢ copy_as_defined l β cty ty T.
+  Lemma copy_as_defined_refinement A l β (ty : rtype A) {HC: ∀ x, CopyAsDefined l β (x @ ty)} T:
+    (∀ x, (HC x T).(i2p_P)) ⊢ copy_as_defined l β ty T.
   Proof.
     iIntros "HT Hl". unfold ty_of_rty; simpl_type. iDestruct "Hl" as (x) "Hl".
     iSpecialize ("HT" $! x). iDestruct (i2p_proof with "HT") as "HT". by iApply "HT".

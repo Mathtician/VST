@@ -437,37 +437,54 @@ Section struct.
   Global Instance struct_proper : Proper ((=) ==> Forall2 (≡) ==> (≡)) struct.
   Proof. move => ??-> ?? Heq. apply type_le_equiv_list; [by apply struct_le|done]. Qed.
 
-  Global Instance struct_affine cty v i tys `{!TCForall (λ ty, forall cty v, Affine (v ◁ᵥ|cty| ty)) tys}: Affine (v ◁ᵥ|cty| struct i tys).
+  Global Instance struct_affine cty v i tys {Htys : TCForall (λ ty, forall cty v, Affine (v ◁ᵥ|cty| ty)) tys}:
+    Affine (v ◁ᵥ|cty| struct i tys).
   Proof.
     rewrite /struct; simpl_type.
-    do 2 (apply bi.exist_affine; intros).
-    do 2 (apply bi.sep_affine; first apply _).
-    apply bi.exist_affine; intros n.
-    apply bi.sep_affine; first apply _.
-    apply embed_affine.
-    subst; simpl.
-    forget (unfold_reptype v) as v0; clear v; simpl in v0; revert v0.
-    rewrite /reptype_structlist.
-    assert (forall ms, ms = co_members (get_co i) → forall v0, Affine (aggregate_pred.struct_pred (co_members (get_co i))
-      (λ (m : member) (v : reptype (field_type (name_member m) ms)) (_ : val),
-       ∃ ty : type, <affine> ⌜∃ j : nat, ms !! j = Some m ∧ tys !! j = Some ty⌝ ∗
-      (v ◁ᵥ| field_type (name_member m) ms | ty) n) v0 Vundef)); last by auto.
-    intros ? _; induction (co_members (get_co i)); first apply _; intros.
-    destruct m.
-    - simpl.
-      apply bi.exist_affine; intros.
-      rewrite /Affine.
-      iIntros "((% & % & %) & ?)".
-      eapply TCForall_Forall, Forall_lookup_1 in TCForall0; done.
-    - rewrite -/aggregate_pred.aggregate_pred.struct_pred struct_pred_cons2;
-        apply bi.sep_affine.
-      + apply bi.exist_affine; intros.
-        rewrite /Affine.
-        iIntros "((% & % & %) & ?)".
-        eapply TCForall_Forall, Forall_lookup_1 in TCForall0; done.
-      + apply IHm.
+    repeat ((apply bi.exist_affine; intros) || (apply bi.sep_affine; first apply _)).
+    apply embed_affine, struct_pred_affine; intros ? a ?.
+    apply bi.exist_affine; intros.
+    rewrite /Affine; iIntros "((%j & %Hm & %Hty) & H)".
+    eapply TCForall_Forall, Forall_lookup in Htys; done.
   Qed.
 
+  Global Instance struct_persistent cty v i tys {Htys : TCForall (λ ty, forall cty v, Persistent (v ◁ᵥ|cty| ty)) tys}:
+    Persistent (v ◁ᵥ|cty| struct i tys).
+  Proof.
+    rewrite /struct; simpl_type.
+    repeat ((apply bi.exist_persistent; intros) || (apply bi.sep_persistent; first apply _)).
+    apply embed_persistent, struct_pred_persistent; intros ? a ?.
+    apply bi.exist_persistent; intros.
+    rewrite /Persistent; iIntros "((%j & %Hm & %Hty) & H)".
+    eapply TCForall_Forall, Forall_lookup in Htys; last done.
+    iDestruct "H" as "#?"; iModIntro; eauto with iFrame.
+  Qed.
+
+  Global Instance struct_own_shr_affine l i tys {Htys : TCForall (λ ty, forall l, Affine (l ◁ₗ{Shr} ty)) tys}:
+    Affine (l ◁ₗ{Shr} struct i tys).
+  Proof.
+    rewrite /ty_own /=.
+    rewrite /Affine; iIntros "(_ & % & % & _ & ?)"; iStopProof.
+    pose proof (get_co_members_no_replicate i).
+    eapply embed_affine, (struct_pred_affine' _ _ tytrue); first done.
+    intros ??? Hin ->.
+    apply bi.sep_affine.
+    * rewrite /mapsto_memory_block.at_offset /=.
+      destruct (val2adr _); last apply _.
+      apply elem_of_list_In, elem_of_list_lookup_1 in Hin as (j & Hj).
+      pose proof (lookup_lt_Some _ _ _ Hj) as Hlt.
+      rewrite H -lookup_lt_is_Some in Hlt; destruct Hlt.
+      eapply TCForall_Forall, Forall_lookup in Htys; last done.
+      erewrite proj_struct_lookup; try done; try apply _.
+      rewrite get_member_name //.
+      eapply elem_of_list_In, elem_of_list_lookup_2; eauto.
+    * rewrite /heap_spacer; if_tac; apply _.
+  Qed.
+
+  (* Probably provable, but will be a huge headache and might not be needed.
+  Global Program Instance struct_copyable i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}:
+    Copyable (Tstruct i noattr) (struct i tys).*)
+  
   Lemma struct_focus l β i tys:
     l ◁ₗ{β} struct i tys -∗ ([∗ list] n;ty∈map name_member (get_co i).(co_members);tys, l at{i}ₗ n ◁ₗ{β} ty) ∗ (∀ tys',
            ([∗ list] n;ty∈map name_member (get_co i).(co_members);tys', l at{i}ₗ n ◁ₗ{β} ty) -∗ l ◁ₗ{β} struct i tys').
@@ -696,57 +713,6 @@ Section struct.
   Definition struct_mono_val_inst := [instance struct_mono_val].
   Global Existing Instance struct_mono_val_inst.
 
-  Global Program Instance struct_own_val_persistent i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
-    v : Persistent (v ◁ᵥ|Tstruct i noattr| struct i tys).
-  Next Obligation.
-  Proof.
-    iIntros (i tys Htys ?); rewrite /ty_own_val /=.
-    repeat ((apply bi.exist_persistent; intros) || (apply bi.sep_persistent; first apply _)).
-    apply embed_persistent, struct_pred_persistent; intros ? a ?.
-    apply bi.exist_persistent; intros.
-    rewrite /Persistent; iIntros "((%j & %Hm & %Hty) & H)".
-    eapply TCForall2_Forall2, (Forall2_lookup_lr _ _ _ j) in Htys; [| rewrite list_lookup_fmap Hm // | done].
-    iDestruct "H" as "#?"; iModIntro; eauto with iFrame.
-  Qed.
-
-  (* which is better, this or struct_affine? *)
-  Global Program Instance struct_own_val_affine i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
-    v : Affine (v ◁ᵥ|Tstruct i noattr| struct i tys).
-  Next Obligation.
-  Proof.
-    iIntros (i tys Htys ?); rewrite /ty_own_val /=.
-    repeat ((apply bi.exist_affine; intros) || (apply bi.sep_affine; first apply _)).
-    apply embed_affine, struct_pred_affine; intros ? a ?.
-    apply bi.exist_affine; intros.
-    rewrite /Affine; iIntros "((%j & %Hm & %Hty) & H)".
-    eapply TCForall2_Forall2, (Forall2_lookup_lr _ _ _ j) in Htys; [| rewrite list_lookup_fmap Hm // | done].
-    done.
-  Qed.
-
-  Global Program Instance struct_own_shr_affine i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}
-    v : Affine (v ◁ₗ{Shr} struct i tys).
-  Next Obligation.
-  Proof.
-    iIntros (i tys Htys ?); rewrite /ty_own /=.
-    repeat ((apply bi.exist_affine; intros) || (apply bi.sep_affine; first apply _)).
-    pose proof (get_co_members_no_replicate i).
-    eapply embed_affine, (struct_pred_affine' _ _ tytrue); first done.
-    intros ??? Hin ->.
-    apply bi.sep_affine.
-    * rewrite /mapsto_memory_block.at_offset /=.
-      destruct (val2adr _); last apply _.
-      apply elem_of_list_In, elem_of_list_lookup_1 in Hin as (j & Hj).
-      eapply TCForall2_Forall2, (Forall2_lookup_l _ _ _ j) in Htys as (? & ? & ?); [| rewrite list_lookup_fmap Hj //].
-      erewrite proj_struct_lookup; try done; try apply _.
-      rewrite get_member_name //.
-      eapply elem_of_list_In, elem_of_list_lookup_2; eauto.
-    * rewrite /heap_spacer; if_tac; apply _.
-  Qed.
-
-  (* Probably provable, but will be a huge headache and might not be needed.
-  Global Program Instance struct_copyable i tys `{!TCForall2 Copyable (map (λ m, field_type (name_member m) (get_co i).(co_members)) (get_co i).(co_members)) tys}:
-    Copyable (Tstruct i noattr) (struct i tys).*)
-  
   Definition field_index_of ms n := fst <$> list_find (λ m, name_member m = n) ms.
   #[global] Arguments field_index_of !_ !_ /.
 

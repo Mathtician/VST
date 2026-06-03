@@ -64,9 +64,9 @@ Section own.
     iApply loc_in_bounds_shorten; last done. by rewrite /val_of_loc.
   Qed. *)
 
-  Global Instance frac_ptr_defined cty p β ty: DefinedTy cty (p @ frac_ptr β ty).
+  Global Instance frac_ptr_defined p β ty: DefinedTy (p @ frac_ptr β ty).
   Proof.
-    iIntros (?) "(% & _)".
+    iIntros (??) "(% & _)".
     destruct cty; try done; destruct v; try done.
   Qed.
 
@@ -646,11 +646,12 @@ Section null.
     ⊢ typed_value (tptr cty) nullval T.
   Proof. iIntros "HT". iExists _. iFrame. done. Qed.
   Definition type_null_inst := [instance type_null].
-  Global Existing Instance type_null_inst.
+  Global Existing Instance type_null_inst | 1.
 
-  Global Program Instance null_copyable cty : Copyable (tptr cty) (null).
+  Global Program Instance null_copyable : Copyable null.
   Next Obligation.
-    iIntros (? E l ??) "(% & Hl)".
+    iIntros (E ? l ? Hcty) "(% & Hl)".
+    hnf in Hcty; destruct cty; inv Hcty.
     rewrite /has_layout_loc field_compatible_tptr; iSplitR => //.
     iInv "Hl" as ">(% & % & Hl)" "Hclose".
     exploit slice.split_readable_share; first done; intros (s & ? & ? & ? & ?).
@@ -665,9 +666,17 @@ Section null.
     rewrite (mapsto_tptr _ _ _ cty) //.
   Qed.
   
-  Global Program Instance null_defined cty : DefinedTy (tptr cty) (null).
-  Next Obligation. by intros; iIntros (? ->). Qed.
-  
+  Global Program Instance null_defined : DefinedTy null.
+  Next Obligation. intros; iIntros (? ->). by destruct cty. Qed.
+
+  (*(* Why don't they need this? Because TypedValue and cast rules proactively catch nulls. *)
+  Lemma simplify_null t a v {H : TCEq v nullval} T:
+    (v ◁ᵥ|Tpointer t a| null -∗ T)
+    ⊢ simplify_hyp (v ◁ᵥ|Tpointer t a| value (Tpointer t a) nullval) T.
+  Proof.  iIntros "HT Hv". inv H. by iApply "HT". Qed.
+  Definition simplify_null_inst := [instance simplify_null with 0%N].
+  Global Existing Instance simplify_null_inst.*)
+
   Definition heap_loc_eq l1 l2 m :=
     if Archi.ptr64 then Val.cmplu_bool (Mem.valid_pointer m) Ceq l1 l2
     else Val.cmpu_bool (Mem.valid_pointer m) Ceq l1 l2.
@@ -917,59 +926,44 @@ Section null.
   
   Definition is_null v :=
     match v with
-    | Vint i => if Archi.ptr64 then false else bool_decide (i = Int.zero)
-    | Vlong i => if Archi.ptr64 then bool_decide (i = Int64.zero) else false
+    | Vint i => if Archi.ptr64 then false else Int.eq i Int.zero
+    | Vlong i => if Archi.ptr64 then Int64.eq i Int64.zero else false
     | _ => false
     end.
 
+  Lemma Int_eq_iff: forall x y, Int.eq x y = true <-> x = y.
+  Proof.
+    split.
+    - apply Int.same_if_eq.
+    - intros ->; apply Int.eq_true.
+  Qed.
+
+  Lemma Int64_eq_iff: forall x y, Int64.eq x y = true <-> x = y.
+  Proof.
+    split.
+    - apply Int64.same_if_eq.
+    - intros ->; apply Int64.eq_true.
+  Qed.
+  
   Lemma is_null_nullval v:
     (is_null v = true) <-> v=nullval.
   Proof.
-    destruct v; try done.
-     rewrite /nullval /=.
-    destruct Archi.ptr64; try done.
-    rewrite bool_decide_eq_true //.
-    split;  intro H; inv H; done.
+    destruct v.
+    - done.
+    - rewrite /nullval /=; destruct Archi.ptr64; first done.
+      rewrite Int_eq_iff; split; congruence.
+    - rewrite /nullval /=; destruct Archi.ptr64; last done.
+      rewrite Int64_eq_iff; split; congruence.
+    - done.
+    - done.
+    - done.
   Qed.
-
-  (*Lemma type_cast_to_ptr0 f e ot T: is_tptr (typeof e) →
-      typed_val_expr ge f e (λ v ty0,
-      if is_null v then
-        <affine> ⌜Affine (v ◁ᵥₐₗ|typeof e| ty0)⌝ ∗
-        T nullval null 
-      else
-        (v ◁ᵥₐₗ|typeof e| ty0 -∗ <affine> ⌜is_pointer_or_null v⌝ ∗ T v (value (tptr ot) v)))
-    ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
-  Proof.
-    intros; iIntros "He %Φ HΦ".
-    iApply wp_cast0.
-    iApply "He".
-    iIntros (v ?) "own_v HT".
-    destruct (is_null v) eqn:His_null.
-    - iDestruct ("HT") as "(% & HT)".
-      apply is_null_nullval in His_null as ->.
-      iExists nullval; iSplit.
-      { iPureIntro; intros. admit. (* is_null *) }
-      iApply ("HΦ" with "[] HT"); rewrite /val_type /=; try iFrame.
-      rewrite /ty_own_val_at /ty_own_val //.
-    - iDestruct ("HT" with "own_v") as "(% & HT)".
-      iExists v; subst; iSplit.
-      { iPureIntro; intros. admit. }
-      iApply ("HΦ" with "[] HT").
-      unfold value; simpl_type.
-      iPureIntro; split3; try done.
-      rewrite has_layout_val_by_value //=.
-      intros ?; simpl.
-      rewrite andb_false_r //.
-  Qed.
-  Definition type_cast_to_ptr_inst := [instance type_cast_to_ptr].*)
-  (*Global Existing Instance type_cast_int_ptr_cast_case_pointer_inst | 50.*)
 
   Lemma type_cast_to_ptr f e ot T: can_cast_to_tptr (typeof e) →
       typed_val_expr ge f e (λ v ty0, <affine> ⌜ty_has_op_type ty0 (val_type (typeof e)) MCNone⌝ ∗
       <affine> ⌜can_cast_to_tptr (typeof e) = true⌝ ∗ (v ◁ᵥₐₗ|typeof e| ty0 -∗ 
       <affine> ⌜v ≠ Vundef⌝ ∗ let v' := cast_to_tptr v (typeof e) in
-        <affine> ⌜is_pointer_or_null v'⌝ ∗ T v' (value (tptr ot) v')))
+        <affine> ⌜is_pointer_or_null v'⌝ ∗ T v' (if is_null v' then null else value (tptr ot) v')))
     ⊢ typed_val_expr ge f (Ecast e (tptr ot)) T.
   Proof.
     intros; iIntros "He %Φ HΦ".
@@ -983,11 +977,13 @@ Section null.
       apply has_layout_val_tc_val in Hv as (? & ?); auto.
       apply val_type_by_value. }
     iApply ("HΦ" with "[] HT").
-    unfold value; simpl_type.
-    iPureIntro; split3; try done.
-    rewrite has_layout_val_by_value //=.
-    intros ?; simpl.
-    rewrite andb_false_r //.
+    destruct (is_null _) eqn: Hnull.
+    - by apply is_null_nullval in Hnull.
+    - unfold value; simpl_type.
+      iPureIntro; split3; try done.
+      rewrite has_layout_val_by_value //=.
+      intros ?; simpl.
+      rewrite andb_false_r //.
   Qed.
   Definition type_cast_to_ptr_inst := [instance type_cast_to_ptr].
   (*Global Existing Instance type_cast_int_ptr_cast_case_pointer_inst | 50.*)
@@ -1027,17 +1023,6 @@ Section optionable.
     done.
   Qed.
   
-  (* Global Program Instance ptr_optional : ROptionable ptr null PtrOp PtrOp := {| *)
-  (*   ropt_opt x := {| opt_alt_sz := _ |} *)
-  (* |}. *)
-  (* Next Obligation. move => ?. done. Qed. *)
-  (* Next Obligation. *)
-  (*   iIntros (p bty beq v1 v2 σ v) "H1 -> Hctx". *)
-  (*   destruct bty; [ iDestruct "H1" as %-> | iDestruct "H1" as %-> ]; iPureIntro. *)
-  (*   - admit. (*by etrans; first apply (eval_bin_op_ptr_null (negb beq)); destruct beq => //.*) *)
-  (*   - by etrans; first apply (eval_bin_op_null_null beq); destruct beq => //. *)
-  (* Admitted. *)
-
   Lemma subsume_optional_place_val_null A cty ty l β b ty' T:
     (l ◁ₗ{β} ty' -∗ ∃ x, <affine> ⌜b x⌝ ∗ l ◁ᵥₐₗ|cty| (ty x) ∗ T x)
       ⊢ subsume (l ◁ₗ{β} ty') (λ x : A, l ◁ᵥₐₗ|cty| (b x) @ optional (ty x) null) T.

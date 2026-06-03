@@ -384,9 +384,9 @@ Section place.
   Definition typed_write_end_simpl_inst := [instance typed_write_end_simpl].
   Global Existing Instance typed_write_end_simpl_inst | 1000.
 
-  Lemma type_var_local ge f x β cty (T: address -> own_state -> type -> assert) :
-    find_in_context (FindLvar cty x) (λ ty, x ◁ₗᵥ|cty| ty -∗ ∀ l, T l β (place l))
-    ⊢ typed_lvalue ge f β (Evar x cty) T.
+  Lemma type_var_local ge f x cty (T: address -> own_state -> type -> assert) :
+    find_in_context (FindLvar cty x) (λ ty, ∀ l, l ◁ₗ ty -∗ l ◁ₗ ty ∗ (x ◁ₗᵥ|cty| ty -∗ T l Own (place l)))
+    ⊢ typed_lvalue ge f (Evar x cty) T.
   Proof.
     rewrite /find_in_context /=.
     iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
@@ -394,15 +394,18 @@ Section place.
     iApply wp_var_local.
     iFrame.
     iIntros "Hx".
+    iDestruct ("HT" with "Hv") as "(Hv & HT)".
     iSpecialize ("HT" with "[$Hx $Hv]").
     iApply "HΦ"; last done.
     iPureIntro; done.
   Qed.
+  Definition type_var_local_inst := [instance type_var_local].
+  Global Existing Instance type_var_local_inst.
 
-  Lemma type_var_global ge f x β cty (T: address -> own_state -> type -> assert) :
+  Lemma type_var_global ge f x cty (T: address -> own_state -> type -> assert) :
     ~In x (map fst (fn_vars f)) →
-    find_in_context (FindGvar x) (λ ty, ty_own_gvar ty x -∗ ∀ l, T l β (place l))
-    ⊢ typed_lvalue ge f β (Evar x cty) T.
+    find_in_context (FindGvar x) (λ ty, ∀ l, l ◁ₗ ty -∗ l ◁ₗ ty ∗ (ty_own_gvar ty x -∗ T l Own (place l)))
+    ⊢ typed_lvalue ge f (Evar x cty) T.
   Proof.
     rewrite /find_in_context /=.
     iDestruct 1 as (ty) "[(% & ? & Hv) HT]".
@@ -410,10 +413,13 @@ Section place.
     iApply wp_var_global => //.
     iFrame.
     iIntros "Hx".
+    iDestruct ("HT" with "Hv") as "(Hv & HT)".
     iSpecialize ("HT" with "[$Hx $Hv]").
     iApply "HΦ"; last done.
     iPureIntro; done.
   Qed.
+  Definition type_var_global_inst := [instance type_var_global].
+  Global Existing Instance type_var_global_inst.
 
   (*Lemma type_var_global0 ge f _x b β ty c_ty (T: address -> own_state -> type -> assert) :
     ~In _x (map fst (fn_vars f)) → Genv.find_symbol ge _x = Some b →

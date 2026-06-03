@@ -33,7 +33,7 @@ Section function.
   }.
 
   Definition typed_var_block (idt: ident * Ctypes.type): assert :=
-  ⌜(Ctypes.sizeof (snd idt) <= Ptrofs.max_unsigned)%Z⌝ ∧
+  <affine> ⌜(Ctypes.sizeof (snd idt) <= Ptrofs.max_unsigned)%Z⌝ ∗
   idt.1 ◁ₗᵥ|idt.2| uninit (idt.2).
 
   Definition typed_stackframe1 (f: Clight.function) : assert :=

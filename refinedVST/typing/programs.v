@@ -288,16 +288,13 @@ Section judgements.
     (∀ Φ, (∀ v (ty : type), v ◁ᵥₐₗ|typeof e| ty -∗ T v ty -∗ Φ v) -∗ wp_expr ge ⊤ f e Φ).
   Global Arguments typed_val_expr _ _%_I.
 
-  (* FIXME sounds like typed_addr_of, although typed_addr_of is for typing `&e`; are they the same?  *)
-  Definition typed_lvalue f β e T : assert :=
+  Definition typed_lvalue f e T : assert :=
     (∀ Φ:address->assert, 
-      (∀ (l:address) (ty : type),
-        l ◁ₗ{β} ty (* typed_write_end has this so maybe here needs it too? *) 
-        -∗ T l β ty -∗ Φ l)
+      (∀ (l:address) β (ty : type), l ◁ₗ{β} ty -∗ T l β ty -∗ Φ l)
       -∗ wp_lvalue ge ⊤ f e Φ).
-  Global Arguments typed_lvalue _ _ _ _%_I.
-  Class TypedLvalue f β (e : expr) : Type :=
-    typed_lvalue_proof T : iProp_to_Prop (typed_lvalue f β e T).
+  Global Arguments typed_lvalue _ _ _%_I.
+  Class TypedLvalue f (e : expr) : Type :=
+    typed_lvalue_proof T : iProp_to_Prop (typed_lvalue f e T).
 
   Definition typed_value (cty : Ctypes.type) (v : val) (T : type → assert) : assert :=
     (∃ (ty: type), v ◁ᵥₐₗ|cty| ty ∗ T ty).
@@ -547,7 +544,7 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
   Fixpoint find_place_ctx f (e : expr) : option ((list place_ectx_item → address → assert) → assert) :=
     match e with
     | Etempvar _ cty => Some (λ T, typed_val_expr f e (λ v ty, v ◁ᵥₐₗ|cty| ty -∗ ∃ l, <affine> ⌜v = adr2val l⌝ ∗ T [] l)%I)
-    | Evar _ cty => Some (λ T, ∃ β, typed_lvalue f β e (λ l β ty, l ◁ₗ{β} ty -∗ T [] l)%I)
+    | Evar _ cty => Some (λ T, typed_lvalue f e (λ l β ty, l ◁ₗ{β} ty -∗ T [] l)%I)
     | Ederef e cty => T' ← find_place_ctx f e; Some (λ T, T' (λ K l, T (if is_lvalue e then K ++ [DerefPCtx (typeof e)] else K) l))
     | Efield e m cty => T' ← find_place_ctx f e; Some (λ T, T' (λ K l, match typeof e with
         | Tstruct i _ => T (K ++ [GetMemberPCtx i m]) l | Tunion i _ => T (K ++ [GetMemberUnionPCtx i m]) l | _ => False end))
@@ -600,8 +597,7 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
     all: try match goal with
     |  H : context [IntoPlaceCtx _ _] |- _ => rename H into IH
     end; rewrite /wp_lvexpr /=.
-    - iDestruct "HT" as (?) "HT".
-      iApply "HT"; iIntros (??) "? H".
+    - iApply "HT"; iIntros (???) "? H".
       by iApply ("HΦ'" $! []); iApply "H".
     - iApply "HT"; iIntros (??) "? H".
       iDestruct ("H" with "[$]") as (?) "($ & ?)".
@@ -730,6 +726,7 @@ Global Hint Mode SimpleSubsumeVal + + + + + ! ! - : typeclass_instances.
 Global Hint Mode TypedIf + + + + + : typeclass_instances.
 Global Hint Mode TypedAssert + + + + + + + : typeclass_instances.
 Global Hint Mode TypedValue + + + + + + : typeclass_instances.
+Global Hint Mode TypedLvalue + + + + + + + : typeclass_instances.
 Global Hint Mode TypedBinOp + + + + + + + + + + + + + : typeclass_instances.
 Global Hint Mode TypedUnOp + + + + + + + + + : typeclass_instances.
 Global Hint Mode TypedCall + + + + + + + + + + + + + + : typeclass_instances.
@@ -1024,6 +1021,7 @@ Ltac generate_i2p_instance_to_tc_hook arg c ::=
   | typed_assert ?x1 ?x2 ?x3 => constr:(TypedAssert x1 x2 x3)
   | typed_switch ?x1 ?x2 ?x3 => constr:(TypedSwitch x1 x2 x3)
   | typed_annot_stmt ?x1 ?x2 ?x3 => constr:(TypedAnnotStmt x1 x2 x3)
+  | typed_lvalue ?f ?x => constr:(TypedLvalue f x)
   | copy_as ?x1 ?x2 ?x3 => constr:(CopyAs x1 x2 x3)
   | copy_as_defined ?x1 ?x2 ?x3 => constr:(CopyAsDefined x1 x2 x3)
   | _ => fail "unknown judgement" c
@@ -1561,7 +1559,7 @@ Section typing.
     <affine> ⌜type_is_by_value (typeof e1) = true⌝ ∗
     <affine> ⌜type_is_volatile (typeof e1) = false⌝ ∗
     typed_val_expr ge f (Ecast e2 (typeof e1)) (λ v ty,
-      ∃ m, <affine> ⌜ty_has_op_type ty (typeof e1) m⌝ ∗
+      <affine> ⌜ty_has_op_type ty (typeof e1) MCNone⌝ ∗
       typed_write ge f false e1 (typeof e1) v ty (T_normal T))
     ⊢ typed_stmt Espec ge (Sassign e1 e2) f T.
   Proof.
@@ -1569,7 +1567,7 @@ Section typing.
     unfold typed_stmt.
     rewrite -wp_store0.
     iIntros "(% & % & H)". iApply "H".
-    iIntros (v ty) "H (% & % & ty_write)".
+    iIntros (v ty) "H (% & ty_write)".
     rewrite /val_type H /=.
     iDestruct (ty_size_eq _ with "H") as %Htc; first done.
     apply has_layout_val_tc_val'2 in Htc; [|done..].
@@ -2245,15 +2243,15 @@ Section typing.
 
   (* Ke: a simple version of type_write that treat typed_place as just typed_val_expr. 
          Not so sure about what's inside typed_val_expr outside of typed_write_end. *)
-  Lemma type_write_simple ge f β1 (a : bool) ty T e v ot:
-    (typed_lvalue ge f β1 e (λ l β2 ty1,
-      typed_write_end a ⊤ ot v ty l β2 ty1 (λ ty3:type, l ◁ₗ{β1} ty3 -∗ T)))%I
+  Lemma type_write_simple ge f (a : bool) ty T e v ot:
+    (typed_lvalue ge f e (λ l β ty1,
+      typed_write_end a ⊤ ot v ty l β ty1 (λ ty3:type, l ◁ₗ{β} ty3 -∗ T)))%I
     ⊢ typed_write ge f a e ot v ty T.
   Proof.
     iIntros "typed_e".
     iIntros (Φ) "HΦ".
     unfold typed_lvalue.
-    iApply "typed_e". iIntros (l ty1) "Hv typed_write_end".
+    iApply "typed_e". iIntros (l β1 ty1) "Hv typed_write_end".
     iApply "HΦ".
     iIntros "own_v".
     unfold typed_write_end.

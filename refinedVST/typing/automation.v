@@ -180,6 +180,8 @@ Ltac liExtensible_to_i2p_hook P bind cont ::=
       cont uconstr:(((_ : TypedWriteEnd _ _ _ _ _ _ _ _) _))
   | typed_temp _ _ _ ?T =>
       cont uconstr:(((_ : TypedTemp _ _ _) _))
+  | typed_lvalue _ _ _ ?T =>
+      cont uconstr:(((_ : TypedLvalue _ _ _) _))
   | typed_addr_of_end ?l ?β ?ty ?T =>
       cont uconstr:(((_ : TypedAddrOfEnd _ _ _) _))
   (*
@@ -365,12 +367,12 @@ Ltac liRExpr :=
     | Ealignof _ _ => notypeclasses refine (tac_fast_apply (type_alignof _ _ _ _ _) _)
     | _ => fail "do_expr: unknown expr" e
     end
-  | |- envs_entails ?Δ (typed_lvalue _ _ ?β ?e ?T) =>
+  (*| |- envs_entails ?Δ (typed_lvalue _ _ ?β ?e ?T) =>
     lazymatch e with
     | Evar _ _ => first [notypeclasses refine (tac_fast_apply (type_var_global _ _ _ _ _ _ _ _ _) _); first by simpl; congruence |
                          notypeclasses refine (tac_fast_apply (type_var_local _ _ _ _ _ _ _ _) _)]
     | _ => fail "do_expr: unknown expr" e
-    end
+    end*)
   end.
 
 Ltac liRJudgement :=
@@ -454,7 +456,7 @@ Tactic Notation "start_function" constr(fnname) "(" simple_intropattern(x) ")" :
   split; [simpl; by [repeat constructor; try econstructor] || fail "in" fnname "argument types don't match layout of arguments" |].
 
 Tactic Notation "start_function2" :=
-  iStartProof; rewrite /typed_stackframe.
+  iStartProof; rewrite /typed_stackframe /typed_var_block.
 
 (*Ltac type_function_end :=
   match goal with |- envs_entails _ (typed_stackframe1 _) =>

@@ -229,14 +229,17 @@ Section optional.
   Definition type_eq_optional_neq_inst := [instance type_eq_optional_neq].
   Global Existing Instance type_eq_optional_neq_inst.
 
-  Lemma type_neq_optional v1 v2 (cty cty2 : Ctypes.type) ty optty ot1 ot2
+  Lemma type_neq_optional v1 v2 (cty cty2 : Ctypes.type) v1' v2' ty optty ot1 ot2
+    `{!TCEq (valinject (val_type cty) v1) v1'}
+    `{!TCEq (valinject (val_type cty2) v2) v2'}
     `{!Optionable cty cty2 ty optty ot1 ot2} `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} b T :
     opt_pre ty v1 v2 ∧
     case_if b
       (li_trace (TraceOptionalNe b) (v1 ◁ᵥₐₗ|cty| ty -∗ T (i2v (bool_to_Z true) tint) (true @ boolean tint)))
       (li_trace (TraceOptionalNe (¬ b)) (v1 ◁ᵥₐₗ|cty| optty -∗ T (i2v (bool_to_Z false) tint) (false @ boolean tint)))
-      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ (optional ty optty)) v2 (v2 ◁ᵥₐₗ|cty2| optty) Cop.One ot1 ot2 tint T.
+      ⊢ typed_bin_op ge v1 (v1' ◁ᵥ|val_type cty| b @ (optional ty optty)) v2 (v2' ◁ᵥ|val_type cty2| optty) Cop.One ot1 ot2 tint T.
   Proof.
+    rewrite -TCEq0 -TCEq1.
     unfold li_trace. iIntros "HT Hv1 Hv2" (Φ) "HΦ".
     iDestruct "Hv1" as "[[% Hv1]|[% Hv1]]".
     - iIntros "!>" (?) "Hctx !>".
@@ -412,15 +415,18 @@ Section optionalO.
   Inductive trace_optionalO :=
   | TraceOptionalO.
 
-  Lemma type_eq_optionalO A (v1 v2 : val) (cty cty2 : Ctypes.type) (ty : A → type) optty (ot1 ot2 : Ctypes.type)
+  Lemma type_eq_optionalO A (v1 v2 : val) (cty cty2 : Ctypes.type) v1' v2' (ty : A → type) optty (ot1 ot2 : Ctypes.type)
+    `{!TCEq (valinject (val_type cty) v1) v1'}
+    `{!TCEq (valinject (val_type cty2) v2) v2'}
     `{!∀ x, Optionable cty cty2 (ty x) optty ot1 ot2}
     `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} (b : option A) `{!Inhabited A} (T : _ → _ → assert):
    opt_pre (ty (option.default inhabitant b)) v1 v2 ∧ 
     case_destruct b (λ b _,
         li_trace (TraceOptionalO, b) (∀ v, (if b is Some x then v1 ◁ᵥₐₗ|cty| ty x else v1 ◁ᵥₐₗ|cty| optty) -∗
          T v ((if b is Some x then false else true) @ boolean tint)))
-      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ optionalO ty optty) v2 (v2 ◁ᵥₐₗ|cty2| optty) Oeq ot1 ot2 tint T.
+      ⊢ typed_bin_op ge v1 (v1' ◁ᵥ|val_type cty| b @ optionalO ty optty) v2 (v2' ◁ᵥ|val_type cty2| optty) Oeq ot1 ot2 tint T.
   Proof.
+    rewrite -TCEq0 -TCEq1.
     unfold li_trace. iIntros "HT Hv1 Hv2". iIntros (Φ) "HΦ".
     destruct b.
     - iIntros "!>" (?) "Hctx !>".

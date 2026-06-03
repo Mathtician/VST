@@ -57,12 +57,13 @@ Section own.
   Definition frac_ptr (β : own_state) (ty : type) : rtype _ := RType (frac_ptr_type β ty).
 
   (* this is at least true for Own, but not for Shr? *)
-(*  Global Instance frac_ptr_loc_in_bounds l ty β1 β2 : LocInBounds (l @ frac_ptr β1 ty) β2.
+  Global Instance frac_ptr_loc_in_bounds l ty β1 : LocInBounds (l @ frac_ptr β1 ty) Own (Z.to_nat (sizeof (tptr tvoid))).
   Proof.
-    constructor. iIntros (?) "(_&Hl&_)".
-    iDestruct (heap_mapsto_own_state_loc_in_bounds with "Hl") as "Hb".
-    iApply loc_in_bounds_shorten; last done. by rewrite /val_of_loc.
-  Qed. *)
+    constructor. { simpl; destruct Archi.ptr64; lia. } iIntros (?) "(%&Hl&_)".
+    iDestruct (data_at_rec_loc_in_bounds with "Hl") as "Hb"; try done.
+    { destruct H as (_ & _ & H & _); simpl in *; rep_lia. }
+    { apply H. }
+  Qed.
 
   Global Instance frac_ptr_defined p β ty: DefinedTy (p @ frac_ptr β ty).
   Proof.
@@ -725,7 +726,9 @@ Section null.
     iApply (wp_binop_sc _ _ _ _ _ _ _ (Val.of_bool (if op is Oeq then false else true))).
     { by destruct op. }
     iSplit.
-    - iPoseProof (loc_in_bounds_weak_valid_pointer with "Hl") as "Hl".
+    - iPoseProof (loc_in_bounds_in_bounds with "Hl") as "Hl".
+      iPoseProof (loc_in_bounds_weak_valid_pointer with "Hl") as "Hl".
+      { by destruct LocInBounds0. }
       destruct op; try done; rewrite /= /sc_cmp /= /sc_cmp_ptr /nullval /=; simple_if_tac; done.
     - iSpecialize ("HT" with "Hl").
       iApply "HΦ" => //.
@@ -749,7 +752,9 @@ Section null.
     iApply (wp_binop_sc _ _ _ _ _ _ _ (Val.of_bool (if op is Oeq then false else true))).
     { by destruct op. }
     iSplit.
-    - iPoseProof (loc_in_bounds_weak_valid_pointer with "Hl") as "Hl".
+    - iPoseProof (loc_in_bounds_in_bounds with "Hl") as "Hl".
+      iPoseProof (loc_in_bounds_weak_valid_pointer with "Hl") as "Hl".
+      { by destruct LocInBounds0. }
       destruct op; try done; rewrite /= /sc_cmp /= /sc_cmp_ptr /nullval /=; simple_if_tac; done.
     - iSpecialize ("HT" with "Hl").
       iApply "HΦ" => //.
@@ -998,9 +1003,9 @@ Proof. by destruct t. Qed.
 Section optionable.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
-  Global Program Instance frac_ptr_optional p cty ty β t1 t2:
-    Optionable cty (p @ frac_ptr β ty) null (tptr t1) (tptr t2) := {|
-    opt_pre v1 v2 := (p ◁ₗ{β} ty -∗ ⎡expr.valid_pointer p⎤)%I
+  Global Program Instance frac_ptr_optional p cty cty2 ty β t1 t2:
+    Optionable cty cty2 (p @ frac_ptr β ty) null (tptr t1) (tptr t2) := {|
+    opt_pre v1 v2 := (p ◁ₗ{β} ty -∗ loc_in_bounds p 1)%I
   |}.
   Next Obligation.
     intros.
@@ -1009,12 +1014,13 @@ Section optionable.
     rewrite repinject_valinject // in H2; subst.
     destruct bty.
     - iDestruct "H1" as "(% & Hty)".
-      rewrite repinject_valinject // in H; subst.
+      rewrite repinject_valinject in H; subst; last by apply val_type_by_value.
       iDestruct ("Hpre" with "Hty") as "Hlib".
+      rewrite loc_in_bounds_valid_pointer; last lia.
       iDestruct (valid_pointer.valid_pointer_dry0 with "[$Hctx $Hlib]") as %Hvalid; iPureIntro.
       destruct beq => /=; rewrite /Cop.sem_cmp /= /cmp_ptr /nullval /=; change Archi.ptr64 with true; rewrite /= Hvalid /= /Vtrue /Vfalse /Int.zero /Int.one; split; congruence.
     - iDestruct "H1" as %H1.
-      rewrite repinject_valinject // in H1; subst.
+      rewrite repinject_valinject in H1; subst; last by apply val_type_by_value.
       rewrite eval_bin_op_ptr_cmp // /= ?Int.eq_true ?Int64.eq_true; destruct beq => //.
   Qed.
   

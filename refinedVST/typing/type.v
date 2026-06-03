@@ -317,15 +317,15 @@ Section own_state.
    allocated but now-deallocated memory seems like UB by the C standard. *)
 
   (* Also, for some reason Caesium says that offset 0 is in bounds of a size-0 allocation. *)
-  Definition loc_in_bounds (l : val) (n : nat) := ∀ i, ⌜0 ≤ i < n⌝ →
-    valid_pointer (offset_val i l).
+  Definition loc_in_bounds (l : loc) (n : nat) : assert := ∀ i, ⌜0 ≤ i < n⌝ →
+    ⎡valid_pointer (offset_val i l)⎤.
 
   Lemma data_at_rec_loc_in_bounds : forall q cty v (l : address),
     q ≠ Share.bot →
     composite_compute.complete_legal_cosu_type cty = true →
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof cty < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs cty (Ptrofs.unsigned l.2) →
-    data_at_rec q cty v l ⊢ loc_in_bounds l (Z.to_nat (expr.sizeof cty)).
+    ⎡data_at_rec q cty v l⎤ ⊢ loc_in_bounds l (Z.to_nat (expr.sizeof cty)).
   Proof.
     intros.
     destruct l as (b, o); simpl.
@@ -339,7 +339,7 @@ Section own_state.
     composite_compute.complete_legal_cosu_type cty = true →
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof cty < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs cty (Ptrofs.unsigned l.2) →
-    l ↦[β]|cty| v ={E}=∗ ⎡loc_in_bounds l (Z.to_nat (expr.sizeof cty))⎤.
+    l ↦[β]|cty| v ={E}=∗ loc_in_bounds l (Z.to_nat (expr.sizeof cty)).
     (* Unfortunately we need the view shift here -- we can't put valid_pointer outside the
        inv in the Shr case without losing persistence -- but that makes this almost
        unusable. *)
@@ -581,8 +581,8 @@ Global Existing Instance copy_own_affine.
 (* we require a nonzero size, since unlike in Caesium a size-0 allocation isn't enough
    to obtain valid_pointer *)
 Class LocInBounds `{!typeG OK_ty Σ} {cs : compspecs} (ty : type) (β : own_state) (n: nat) := {
-  loc_in_bounds_pos : n > 0;
-  loc_in_bounds_in_bounds l : ty.(ty_own) β l -∗ ⎡loc_in_bounds l n⎤
+  loc_in_bounds_pos : (n > 0)%nat;
+  loc_in_bounds_in_bounds l : ty.(ty_own) β l -∗ loc_in_bounds l n
   (* if we make this ={E}=∗ instead, it interacts poorly with ∧ *)
 }.
 Arguments loc_in_bounds_in_bounds {_ _ _ _} _ _ _ {_} _.
@@ -591,15 +591,24 @@ Global Hint Mode LocInBounds + + + + + + - : typeclass_instances.
 Section loc_in_bounds.
   Context `{!typeG OK_ty Σ} {cs : compspecs}.
 
-  Lemma loc_in_bounds_weak_valid_pointer : forall ty β n {LB: LocInBounds ty β n} l,
-    ty.(ty_own) β l -∗ ⎡weak_valid_pointer l⎤.
+  Lemma loc_in_bounds_shorten l n m: (n <= m)%nat → loc_in_bounds l m ⊢ loc_in_bounds l n.
+  Proof.
+    intros; rewrite /loc_in_bounds; iIntros "H" (??).
+    iApply "H"; iPureIntro; lia.
+  Qed.
+
+  Lemma loc_in_bounds_valid_pointer : forall l n, (n > 0)%nat →
+    loc_in_bounds l n ⊢ ⎡valid_pointer l⎤.
   Proof.
     intros; iIntros "H".
-    iPoseProof (loc_in_bounds_in_bounds with "H") as "H".
-    iSpecialize ("H" $! 0 with "[%]").
-    { apply @loc_in_bounds_pos in LB; lia. }
-    iApply valid_pointer_weak.
+    iSpecialize ("H" $! 0 with "[%]"); first lia.
     by iApply valid_pointer_offset_zero.
+  Qed.
+
+  Lemma loc_in_bounds_weak_valid_pointer : forall l n, (n > 0)%nat →
+    loc_in_bounds l n ⊢ ⎡weak_valid_pointer l⎤.
+  Proof.
+    intros; rewrite -valid_pointer_weak; by eapply loc_in_bounds_valid_pointer.
   Qed.
 
   Lemma movable_loc_in_bounds ty (l : address) ot mt:
@@ -607,7 +616,7 @@ Section loc_in_bounds.
     0 ≤ Ptrofs.unsigned l.2 ∧ Ptrofs.unsigned l.2 + expr.sizeof ot < Ptrofs.modulus →
     align_mem.align_compatible_rec cenv_cs ot (Ptrofs.unsigned l.2) →
     ty.(ty_has_op_type) ot mt →
-    ty.(ty_own) Own l -∗ ⎡loc_in_bounds l (Z.to_nat (expr.sizeof ot))⎤.
+    ty.(ty_own) Own l -∗ loc_in_bounds l (Z.to_nat (expr.sizeof ot)).
   Proof.
     intros; iIntros "Hl". iDestruct (ty_deref with "Hl") as (v) "[Hl Hv]"; [done|].
     rewrite /mapsto data_at_rec_loc_in_bounds //; auto.

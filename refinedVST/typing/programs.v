@@ -984,10 +984,6 @@ End proper.
 (*Global Typeclasses Opaque typed_read_end.
 Global Typeclasses Opaque typed_write_end.*)
 
-(*Definition FindTemp `{!typeG OK_ty Σ} {cs : compspecs} (_id: ident) :=
-  {| fic_A := val; fic_Prop v := env.temp _id v; |}.
-Definition FindLvar `{!typeG OK_ty Σ} {cs : compspecs}  (_id: ident) :=
-  {| fic_A := Ctypes.type * Values.block; fic_Prop '(cty , b) := env.lvar _id cty b; |}.*)
 Definition FindTemp `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_in_context_info assert :=
   {| fic_A := type; fic_Prop ty := x ◁ₜ|cty| ty; |}.
 Definition FindLvar `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_in_context_info assert :=
@@ -1142,7 +1138,7 @@ Section typing.
     [instance find_in_context_type_val_or_loc_P_id_loc with FICSyntactic].
   Global Existing Instance find_in_context_type_val_or_loc_P_id_loc_inst | 20.
 
-(*  Lemma find_in_context_loc_in_bounds l T :
+  Lemma find_in_context_loc_in_bounds l T :
     (∃ n, loc_in_bounds l n ∗ T (loc_in_bounds l n))
     ⊢ find_in_context (FindLocInBounds l) T.
   Proof. iDestruct 1 as (n) "[??]". iExists (loc_in_bounds _ _) => /=. iFrame. Qed.
@@ -1158,7 +1154,7 @@ Section typing.
     [instance find_in_context_loc_in_bounds_loc with FICSyntactic].
   Global Existing Instance find_in_context_loc_in_bounds_loc_inst | 10.
 
-  Lemma find_in_context_alloc_alive_global l T :
+  (*Lemma find_in_context_alloc_alive_global l T :
     (alloc_global l ∗ T (alloc_global l))
     ⊢ find_in_context (FindAllocAlive l) T.
   Proof. iDestruct 1 as "?". iExists _ => /=. iFrame. Qed.
@@ -1186,21 +1182,21 @@ Section typing.
     := {| rt_fic := FindValP v |}.
   Global Instance related_to_val_rep_v A cty v_rep ty :  RelatedTo (λ x : A, v_rep ◁ᵥ|cty| ty x)%I | 100
     := {| rt_fic := FindValP (repinject cty v_rep) |}.
-  (* FIXME
   Global Instance related_to_loc_in_bounds A l n : RelatedTo (λ x : A, loc_in_bounds l (n x)) | 100
     := {| rt_fic := FindLocInBounds l |}.
-  Global Instance related_to_alloc_alive A l : RelatedTo (λ x : A, alloc_alive_loc l) | 100
+  (*Global Instance related_to_alloc_alive A l : RelatedTo (λ x : A, alloc_alive_loc l) | 100
     := {| rt_fic := FindAllocAlive l |}.
 
   Global Program Instance learnalignment_none β ty : LearnAlignment β ty None | 1000.
-  Next Obligation. iIntros (???) "?". done. Qed.
+  Next Obligation. iIntros (???) "?". done. Qed.*)
 
+  (* Our loc_in_bounds is connected with ∧, and subsume is locked to ∗.
   Lemma subsume_loc_in_bounds A ty β l (n m : nat) `{!LocInBounds ty β m} T :
     (l ◁ₗ{β} ty -∗ ⌜n ≤ m⌝ ∗ ∃ x, T x)
     ⊢ subsume (l ◁ₗ{β} ty) (λ x : A, loc_in_bounds l n) T.
   Proof.
     iIntros "HT Hl".
-    iDestruct (loc_in_bounds_in_bounds with "Hl") as "#?".
+    iDestruct (loc_in_bounds_in_bounds with "Hl") as "?".
     iDestruct ("HT" with "Hl") as (??) "?". iExists _. iFrame.
     iApply loc_in_bounds_shorten; last done. lia.
   Qed.
@@ -1213,14 +1209,14 @@ Section typing.
     ⊢ subsume (l ◁ₗ{β} ty) (λ x, loc_in_bounds l (n x)) T.
   Proof.
     iIntros "HT Hl".
-    iDestruct (loc_in_bounds_in_bounds with "Hl") as "#?".
+    iDestruct (loc_in_bounds_in_bounds with "Hl") as "?".
     iDestruct ("HT" with "Hl") as (??) "?". iExists _. iFrame.
     iApply loc_in_bounds_shorten; last done. lia.
   Qed.
   Definition subsume_loc_in_bounds_evar_inst := [instance subsume_loc_in_bounds_evar].
-  Global Existing Instance subsume_loc_in_bounds_evar_inst | 20.
+  Global Existing Instance subsume_loc_in_bounds_evar_inst | 20.*)
 
-  Lemma subsume_alloc_alive_global A l T :
+  (*Lemma subsume_alloc_alive_global A l T :
     (∃ x, T x)
     ⊢ subsume (alloc_global l) (λ x : A, alloc_alive_loc l) T.
   Proof. iIntros "[% ?] Hl". iExists _. iFrame. by iApply (alloc_global_alive). Qed.
@@ -1250,21 +1246,21 @@ Section typing.
       by iApply (alloc_alive_alive with "HP Hl").
   Qed.
   Definition simplify_goal_type_alive_inst := [instance simplify_goal_type_alive with 0%N].
-  Global Existing Instance simplify_goal_type_alive_inst.
+  Global Existing Instance simplify_goal_type_alive_inst.*)
 
   Lemma subsume_loc_in_bounds_leq A (l : loc) (n1 n2 : nat) T :
-    (⌜n2 ≤ n1⌝%nat ∗ ∃ x, T x)
+    (<affine> ⌜n2 ≤ n1⌝%nat ∗ ∃ x, T x)
     ⊢ subsume (loc_in_bounds l n1) (λ x : A, loc_in_bounds l n2) T.
-  Proof. iIntros "[% [% ?]] #?". iExists _. iFrame. by iApply loc_in_bounds_shorten. Qed.
+  Proof. iIntros "[% [% ?]] ?". iExists _. iFrame. by iApply loc_in_bounds_shorten. Qed.
   Definition subsume_loc_in_bounds_leq_inst := [instance subsume_loc_in_bounds_leq].
   Global Existing Instance subsume_loc_in_bounds_leq_inst | 10.
 
   Lemma subsume_loc_in_bounds_leq_evar A (l : loc) (n1 : nat) (n2 : A → nat) T :
-    (∃ x, ⌜n2 x = n1⌝%nat ∗ T x)
+    (∃ x, <affine> ⌜n2 x = n1⌝%nat ∗ T x)
     ⊢ subsume (loc_in_bounds l n1) (λ x, loc_in_bounds l (n2 x)) T.
-  Proof. iIntros "[% [% ?]] #?". iExists _. iFrame. iApply loc_in_bounds_shorten; [|done]. lia. Qed.
+  Proof. iIntros "[% [% ?]] ?". iExists _. iFrame. iApply loc_in_bounds_shorten; [|done]. lia. Qed.
   Definition subsume_loc_in_bounds_leq_evar_inst := [instance subsume_loc_in_bounds_leq_evar].
-  Global Existing Instance subsume_loc_in_bounds_leq_evar_inst | 20.*)
+  Global Existing Instance subsume_loc_in_bounds_leq_evar_inst | 20.
 
   Lemma apply_subsume_place_true l1 β1 ty1 l2 β2 ty2:
     l1 ◁ₗ{β1} ty1 -∗
@@ -1309,14 +1305,6 @@ Section typing.
   Proof. iDestruct 1 as (x) "[? $]". by iExists _. Qed.
   Definition simplify_goal_val_refine_r_inst := [instance simplify_goal_val_refine_r with 10%N].
   Global Existing Instance simplify_goal_val_refine_r_inst.
-
-  (* This rule is complete as [LocInBounds] implies that the location cannot be NULL. *)
-(*  Lemma simplify_goal_NULL_loc_in_bounds β ty n `{!LocInBounds ty β n} T:
-    False
-    ⊢ simplify_goal (NULL_loc ◁ₗ{β} ty) T.
-  Proof. by iIntros (?). Qed.
-  Definition simplify_goal_NULL_loc_in_bounds_inst := [instance simplify_goal_NULL_loc_in_bounds with 0%N].
-  Global Existing Instance simplify_goal_NULL_loc_in_bounds_inst.*)
 
   Global Instance simple_subsume_place_id ty : SimpleSubsumePlace ty ty emp | 1.
   Proof. iIntros (??) "_ $". Qed.

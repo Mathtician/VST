@@ -9,13 +9,13 @@ uses the same instances as Optionable.
   TODO: findout if there is a better way, maybe using Canonical Structures?
  *)
 
-Class Optionable `{!typeG OK_ty Σ} {cs : compspecs} (cty : Ctypes.type) (ty : type) (optty : type) (ot1 ot2 : Ctypes.type) := {
+Class Optionable `{!typeG OK_ty Σ} {cs : compspecs} (cty cty2 : Ctypes.type) (ty : type) (optty : type) (ot1 ot2 : Ctypes.type) := {
   opt_pre : val → val → assert;
   opt_bin_op (bty beq : bool) v1 v2 σ v :
-    (⊢ opt_pre v1 v2 -∗ (if bty then v1 ◁ᵥₐₗ|cty| ty else v1 ◁ᵥₐₗ|cty| optty) -∗ v2 ◁ᵥₐₗ|cty| optty -∗ ⎡juicy_mem.mem_auth σ⎤ -∗
+    (⊢ opt_pre v1 v2 -∗ (if bty then v1 ◁ᵥₐₗ|cty| ty else v1 ◁ᵥₐₗ|cty| optty) -∗ v2 ◁ᵥₐₗ|cty2| optty -∗ ⎡juicy_mem.mem_auth σ⎤ -∗
       ⌜sem_binary_operation _ (if beq then Cop.Oeq else Cop.One) v1 ot1 v2 ot2 σ = Some v ↔ Vint (Int.repr (bool_to_Z (xorb bty beq))) = v⌝);
 }.
-Arguments opt_pre {_ _ _ _ _} _ {_ _ _ _} _ _.
+Arguments opt_pre {_ _ _ _ _ _} _ {_ _ _ _} _ _.
 
 Class OptionableAgree `{!typeG OK_ty Σ} {cs : compspecs} (ty1 ty2 : type) : Prop :=
   optionable_dist : True.
@@ -24,11 +24,11 @@ Section optional.
   Context `{!typeG OK_ty Σ} {cs : compspecs} (ge : Genv.t Clight.fundef Ctypes.type).
 
   Global Program Instance optionable_ty_of_rty A (r : rtype A) `{!Inhabited A} optty ot1 ot2
-    `{!∀ x, Optionable cty (x @ r) optty ot1 ot2}: Optionable cty r optty ot1 ot2 := {|
+    `{!∀ x, Optionable cty cty2 (x @ r) optty ot1 ot2}: Optionable cty cty2 r optty ot1 ot2 := {|
      opt_pre (v1 v2 : val) := (∀ x, opt_pre (x @ r) v1 v2)%I
   |}.
   Next Obligation.
-    iIntros(A r?????? bty beq v1 v2 σ v) "Hpre Hv1 Hv2".
+    iIntros(A r??????? bty beq v1 v2 σ v) "Hpre Hv1 Hv2".
     unfold ty_of_rty; simpl_type.
     destruct bty. 1: iDestruct "Hv1" as (y) "Hv1".
     all: iApply (opt_bin_op with "Hpre [Hv1] Hv2") => /= //.
@@ -86,13 +86,13 @@ Section optional.
   optionalO with () instead. *)
   Definition optional (ty : type) (optty : type) : rtype _ := RType (optional_type ty optty).
 
-(*   Global Instance optional_loc_in_bounds ty e ot β n `{!LocInBounds ty β n} `{!LocInBounds ot β n}:
+  Global Instance optional_loc_in_bounds ty e ot β n `{!LocInBounds ty β n} `{!LocInBounds ot β n}:
     LocInBounds (e @ optional ty ot) β n.
   Proof.
-    constructor. rewrite /with_refinement /=. iIntros (l) "Hl".
+    constructor. { by destruct LocInBounds0. } rewrite /with_refinement /=. iIntros (l) "Hl".
     iDestruct "Hl" as "[[_ Hl]|[_ Hl]]"; by iApply (loc_in_bounds_in_bounds with "Hl").
   Qed.
- *)
+
   (* We could add rules like *)
   (* Lemma simplify_optional_goal ty optty l β T b `{!Decision b}: *)
   (*   T (if decide b then l◁ₗ{β}ty else l◁ₗ{β}optty) -∗ *)
@@ -165,18 +165,18 @@ Section optional.
   | TraceOptionalEq (P : Prop)
   | TraceOptionalNe (P : Prop).
   
-  Lemma type_eq_optional_refined v1 v2 (cty : Ctypes.type) v1' v2' (ty optty : type) (ot1 ot2 : Ctypes.type)
+  Lemma type_eq_optional_refined v1 v2 (cty cty2 : Ctypes.type) v1' v2' (ty optty : type) (ot1 ot2 : Ctypes.type)
     `{!TCEq (valinject (val_type cty) v1) v1'}
-    `{!TCEq (valinject (val_type cty) v2) v2'}
-    `{!Optionable cty ty optty ot1 ot2}
-    `{!Affine (v2 ◁ᵥₐₗ|cty| optty)} b (T : _ → _ → assert)
+    `{!TCEq (valinject (val_type cty2) v2) v2'}
+    `{!Optionable cty cty2 ty optty ot1 ot2}
+    `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} b (T : _ → _ → assert)
     (* We'll throw away any ownership associated with v2 (e.g. through an ownership type), so it needs to be affine.
        We could require T to be absorbing instead. *)  :
     opt_pre ty v1 v2 ∧
     case_if b
       (li_trace (TraceOptionalEq b) (v1 ◁ᵥₐₗ|cty| ty -∗ T (i2v (bool_to_Z false) tint) (false @ boolean tint)))
       (li_trace (TraceOptionalEq (¬ b)) (v1 ◁ᵥₐₗ|cty| optty -∗ T (i2v (bool_to_Z true) tint) (true @ boolean tint)))
-      ⊢ typed_bin_op ge v1 (v1' ◁ᵥ|val_type cty| b @ (optional ty optty)) v2 (v2' ◁ᵥ|val_type cty| optty) Oeq ot1 ot2 tint T.
+      ⊢ typed_bin_op ge v1 (v1' ◁ᵥ|val_type cty| b @ (optional ty optty)) v2 (v2' ◁ᵥ|val_type cty2| optty) Oeq ot1 ot2 tint T.
   Proof.
     rewrite -TCEq0 -TCEq1.
     iIntros "HT Hv1 Hv2" (Φ) "HΦ".
@@ -209,10 +209,10 @@ Section optional.
   Definition type_eq_optional_refined_inst := [instance type_eq_optional_refined].
   Global Existing Instance type_eq_optional_refined_inst.
 
-  Lemma type_eq_optional_neq v1 v2 (cty : Ctypes.type) ty optty ot1 ot2
-    `{!Optionable cty ty optty ot1 ot2} `{!Affine (v2 ◁ᵥₐₗ|cty| optty)} T :
+  Lemma type_eq_optional_neq v1 v2 (cty cty2 : Ctypes.type) ty optty ot1 ot2
+    `{!Optionable cty cty2 ty optty ot1 ot2} `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} T :
     opt_pre ty v1 v2 ∧ (∀ v, v1 ◁ᵥₐₗ|cty| ty -∗ T v (false @ boolean tint))
-                           ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| ty) v2 (v2 ◁ᵥₐₗ|cty| optty) Oeq ot1 ot2 tint T.
+                           ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| ty) v2 (v2 ◁ᵥₐₗ|cty2| optty) Oeq ot1 ot2 tint T.
   Proof.
     iIntros "HT Hv1 Hv2". iIntros (Φ) "HΦ".
     iIntros "!>" (?) "Hctx !>".
@@ -229,13 +229,13 @@ Section optional.
   Definition type_eq_optional_neq_inst := [instance type_eq_optional_neq].
   Global Existing Instance type_eq_optional_neq_inst.
 
-  Lemma type_neq_optional v1 v2 (cty : Ctypes.type) ty optty ot1 ot2
-    `{!Optionable cty ty optty ot1 ot2} `{!Affine (v2 ◁ᵥₐₗ|cty| optty)} b T :
+  Lemma type_neq_optional v1 v2 (cty cty2 : Ctypes.type) ty optty ot1 ot2
+    `{!Optionable cty cty2 ty optty ot1 ot2} `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} b T :
     opt_pre ty v1 v2 ∧
     case_if b
       (li_trace (TraceOptionalNe b) (v1 ◁ᵥₐₗ|cty| ty -∗ T (i2v (bool_to_Z true) tint) (true @ boolean tint)))
       (li_trace (TraceOptionalNe (¬ b)) (v1 ◁ᵥₐₗ|cty| optty -∗ T (i2v (bool_to_Z false) tint) (false @ boolean tint)))
-      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ (optional ty optty)) v2 (v2 ◁ᵥₐₗ|cty| optty) Cop.One ot1 ot2 tint T.
+      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ (optional ty optty)) v2 (v2 ◁ᵥₐₗ|cty2| optty) Cop.One ot1 ot2 tint T.
   Proof.
     unfold li_trace. iIntros "HT Hv1 Hv2" (Φ) "HΦ".
     iDestruct "Hv1" as "[[% Hv1]|[% Hv1]]".
@@ -324,14 +324,14 @@ Section optionalO.
   Definition optionalO {A : Type} (ty : A → type) (optty : type) : rtype _ :=
     RType (optionalO_type ty optty).
 
-(*   Global Instance optionalO_loc_in_bounds A (ty : A → type) e ot β n `{!∀ x, LocInBounds (ty x) β n} `{!LocInBounds ot β n}:
+  Global Instance optionalO_loc_in_bounds A (ty : A → type) e ot β n `{!∀ x, LocInBounds (ty x) β n} `{!LocInBounds ot β n}:
     LocInBounds (e @ optionalO ty ot) β n.
   Proof.
-    constructor. iIntros (l) "Hl". unfold optionalO; simpl_type.
+    constructor. { by destruct LocInBounds0. } iIntros (l) "Hl". unfold optionalO; simpl_type.
     destruct e; by iApply (loc_in_bounds_in_bounds with "Hl").
-  Qed. *)
+  Qed.
 
-  (* TODO: should be allow different opttys? *)
+  (* TODO: should we allow different opttys? *)
   Global Instance simple_subsume_place_optionalO A (ty1 : A → _) ty2 optty b
     `{!Affine P} `{!∀ x, SimpleSubsumePlace (ty1 x) (ty2 x) P}:
     SimpleSubsumePlace (b @ optionalO ty1 optty) (b @ optionalO ty2 optty) P.
@@ -412,14 +412,14 @@ Section optionalO.
   Inductive trace_optionalO :=
   | TraceOptionalO.
 
-  Lemma type_eq_optionalO A (v1 v2 : val) (cty : Ctypes.type) (ty : A → type) optty (ot1 ot2 : Ctypes.type)
-    `{!∀ x, Optionable cty (ty x) optty ot1 ot2}
-    `{!Affine (v2 ◁ᵥₐₗ|cty| optty)} (b : option A) `{!Inhabited A} (T : _ → _ → assert):
+  Lemma type_eq_optionalO A (v1 v2 : val) (cty cty2 : Ctypes.type) (ty : A → type) optty (ot1 ot2 : Ctypes.type)
+    `{!∀ x, Optionable cty cty2 (ty x) optty ot1 ot2}
+    `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} (b : option A) `{!Inhabited A} (T : _ → _ → assert):
    opt_pre (ty (option.default inhabitant b)) v1 v2 ∧ 
     case_destruct b (λ b _,
         li_trace (TraceOptionalO, b) (∀ v, (if b is Some x then v1 ◁ᵥₐₗ|cty| ty x else v1 ◁ᵥₐₗ|cty| optty) -∗
          T v ((if b is Some x then false else true) @ boolean tint)))
-      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ optionalO ty optty) v2 (v2 ◁ᵥₐₗ|cty| optty) Oeq ot1 ot2 tint T.
+      ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ optionalO ty optty) v2 (v2 ◁ᵥₐₗ|cty2| optty) Oeq ot1 ot2 tint T.
   Proof.
     unfold li_trace. iIntros "HT Hv1 Hv2". iIntros (Φ) "HΦ".
     destruct b.
@@ -449,12 +449,12 @@ Section optionalO.
   Definition type_eq_optionalO_inst := [instance type_eq_optionalO].
   Global Existing Instance type_eq_optionalO_inst.
 
-  Lemma type_neq_optionalO A v1 v2 cty (ty : A → type) optty ot1 ot2 `{!∀ x, Optionable cty (ty x) optty ot1 ot2}
-    `{!Affine (v2 ◁ᵥₐₗ|cty| optty)} b `{!Inhabited A} T :
+  Lemma type_neq_optionalO A v1 v2 cty cty2 (ty : A → type) optty ot1 ot2 `{!∀ x, Optionable cty cty2 (ty x) optty ot1 ot2}
+    `{!Affine (v2 ◁ᵥₐₗ|cty2| optty)} b `{!Inhabited A} T :
     opt_pre (ty (option.default inhabitant b)) v1 v2 ∧
     case_destruct b (λ b _,
       li_trace (TraceOptionalO, b) (∀ v, (if b is Some x then v1 ◁ᵥₐₗ|cty| ty x else v1 ◁ᵥₐₗ|cty| optty) -∗ T v ((if b is Some x then true else false) @ boolean tint)))
-    ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ optionalO ty optty) v2 (v2 ◁ᵥₐₗ|cty| optty) Cop.One ot1 ot2 tint T.
+    ⊢ typed_bin_op ge v1 (v1 ◁ᵥₐₗ|cty| b @ optionalO ty optty) v2 (v2 ◁ᵥₐₗ|cty2| optty) Cop.One ot1 ot2 tint T.
   Proof.
     unfold li_trace. iIntros "HT Hv1 Hv2". iIntros (Φ) "HΦ".
     destruct b.

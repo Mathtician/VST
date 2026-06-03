@@ -92,11 +92,11 @@ Section own_constrained.
     [instance simplify_goal_val_own_constrained with 0%N].
   Global Existing Instance simplify_goal_val_own_constrained_inst.
 
-  Global Program Instance own_constrained_optional cty ty P optty ot1 ot2 `{!OwnConstraint P} `{!Optionable cty ty optty ot1 ot2} : Optionable cty (own_constrained P ty) optty ot1 ot2 := {|
+  Global Program Instance own_constrained_optional cty cty2 ty P optty ot1 ot2 `{!OwnConstraint P} `{!Optionable cty cty2 ty optty ot1 ot2} : Optionable cty cty2 (own_constrained P ty) optty ot1 ot2 := {|
     opt_pre v1 v2 := opt_pre ty v1 v2
   |}.
   Next Obligation.
-    iIntros (????????[]?????) "Hpre H1 H2". 1: iDestruct "H1" as "[H1 _]".
+    iIntros (?????????[]?????) "Hpre H1 H2". 1: iDestruct "H1" as "[H1 _]".
     - by iApply (opt_bin_op true with "Hpre H1 H2").
     - by iApply (opt_bin_op false with "Hpre H1 H2").
   Qed.

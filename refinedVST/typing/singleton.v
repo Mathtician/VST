@@ -54,11 +54,10 @@ Section value.
   Qed.
 
   Lemma value_simplify ot v p T:
-    (<affine> ⌜v = valinject ot p⌝ -∗ <affine>⌜v `has_layout_val` ot⌝ -∗ ⟦v ◁ᵥ|ot| value ot p⟧ -∗ T)
+    (<affine> ⌜v = valinject ot p⌝ -∗ <affine> ⌜v `has_layout_val` ot⌝ -∗ ⟦v ◁ᵥ|ot| value ot p⟧ -∗ T)
     ⊢ simplify_hyp (v ◁ᵥ|ot| value ot p) T.
   Proof. iIntros "HT [% [% %]]". rewrite do_not_simplify_eq /=. by iApply "HT". Qed.
-  Definition value_simplify_inst := [instance value_simplify with 1%N].
-  (* leave room to simplify specific constants to null *)
+  Definition value_simplify_inst := [instance value_simplify with 0%N].
   Global Existing Instance value_simplify_inst.
 
   Lemma value_simplify_goal ot v p T:
@@ -384,7 +383,7 @@ Section place.
   Definition typed_write_end_simpl_inst := [instance typed_write_end_simpl].
   Global Existing Instance typed_write_end_simpl_inst | 1000.
 
-  Lemma type_var_local ge f x cty (T: address -> own_state -> type -> assert) :
+  (*Lemma type_var_local ge f x cty (T: address -> own_state -> type -> assert) :
     find_in_context (FindLvar cty x) (λ ty, ∀ l, l ◁ₗ ty -∗ l ◁ₗ ty ∗ (x ◁ₗᵥ|cty| ty -∗ T l Own (place l)))
     ⊢ typed_lvalue ge f (Evar x cty) T.
   Proof.
@@ -401,6 +400,7 @@ Section place.
   Qed.
   Definition type_var_local_inst := [instance type_var_local].
   Global Existing Instance type_var_local_inst.
+  (* probably want a move version instead/as well *)
 
   Lemma type_var_global ge f x cty (T: address -> own_state -> type -> assert) :
     ~In x (map fst (fn_vars f)) →
@@ -419,7 +419,7 @@ Section place.
     iPureIntro; done.
   Qed.
   Definition type_var_global_inst := [instance type_var_global].
-  Global Existing Instance type_var_global_inst.
+  Global Existing Instance type_var_global_inst.*)
 
   (*Lemma type_var_global0 ge f _x b β ty c_ty (T: address -> own_state -> type -> assert) :
     ~In _x (map fst (fn_vars f)) → Genv.find_symbol ge _x = Some b →
@@ -431,6 +431,23 @@ Section place.
     iApply (wp_var_global0 _ _ _); [done..|].
     iApply ("HΦ" with "[$]"). done.
   Qed.*)
+
+  Lemma type_var ge f x cty T:
+    match access_mode cty with By_reference | By_copy => True | _ => False end →
+    typed_lvalue ge f (Evar x cty) (λ l, T (adr2val l) (value (val_type cty) l))
+    ⊢ typed_val_expr ge f (Evar x cty) T.
+  Proof.
+    intros; iIntros "H" (?) "HΦ".
+    rewrite -wp_expr_ptr //.
+    iApply "H"; iIntros ((?,?)) "HT".
+    iApply ("HΦ" with "[] HT").
+    { rewrite /value; simpl_type; iPureIntro.
+      split3; try done.
+      apply tc_val_has_layout_val2; first apply val_type_by_value.
+      destruct cty; try done; simpl in *.
+      * by destruct i0, s.
+      * by destruct f0. }
+  Qed.
 
 End place.
 Global Typeclasses Opaque place.

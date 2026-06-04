@@ -361,8 +361,8 @@ Ltac liRExpr :=
     | Efield _ _ _ => notypeclasses refine (tac_fast_apply (type_read_lvalue _ _ _ _ _ _) _);[done|done|]
     | Etempvar _ _ => notypeclasses refine (tac_fast_apply (type_tempvar _ _ _ _ _) _)
     | Evar _ _ => first [notypeclasses refine (tac_fast_apply (type_read_lvalue _ _ _ _ _ _) _);[done|done|] |
-                         notypeclasses refine (tac_fast_apply (type_gvar_expr _ _ _ _ _ _ _ _ _ _) _);[done|simpl; congruence|done|] |
-                         notypeclasses refine (tac_fast_apply (type_lvar_expr _ _ _ _ _ _ _ _) _);[done|] ]
+                         notypeclasses refine (tac_fast_apply (type_var _ _ _ _ _ _) _);[done|] ]
+    | Eaddrof _ _ => notypeclasses refine (tac_fast_apply (type_addrof _ _ _ _ _) _)
     | Esizeof _ _ => notypeclasses refine (tac_fast_apply (type_sizeof _ _ _ _ _) _)
     | Ealignof _ _ => notypeclasses refine (tac_fast_apply (type_alignof _ _ _ _ _) _)
     | _ => fail "do_expr: unknown expr" e
@@ -379,7 +379,7 @@ Ltac liRJudgement :=
   lazymatch goal with
     | |- envs_entails _ (typed_write _ _ _ ?e _ _ _ _) =>
       first [ notypeclasses refine (tac_fast_apply (type_write_lvalue _ _ _ _ _ _ _ _ _ _ _) _); [ solve [refine _ ] | reflexivity |]
-            | notypeclasses refine (tac_fast_apply (type_write_simple _ _ _ _ _ _ _ _ _) _)]
+            (*| notypeclasses refine (tac_fast_apply (type_write_simple _ _ _ _ _ _ _ _ _) _)*) ]
     | |- envs_entails _ (typed_read _ _ _ _ _ _) =>
       notypeclasses refine (tac_fast_apply (type_read _ _ _ _ _ _ _) _); [ solve [refine _ ] |]
     | |- envs_entails _ (typed_addr_of _ _ _ _) =>

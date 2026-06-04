@@ -11,8 +11,9 @@ Definition lockN : namespace := nroot.@"lockN".
 Definition lock_id := gname.
 
 (** Registering the necessary ghost state. *)
-
+Set Warnings "-redundant-canonical-projection".
 Canonical Structure gset_disjUR_authR := inclR(iris.algebra.auth.authR (gset_disjUR string)).
+Set Warnings "redundant-canonical-projection".
 
 Class lockG Σ := LockG {
    lock_inG :: inG Σ (gset_disjUR_authR);

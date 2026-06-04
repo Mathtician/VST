@@ -101,17 +101,19 @@ Section own.
   Definition type_place_frac_inst := [instance type_place_frac].
   Global Existing Instance type_place_frac_inst.
 
-  (* typed_addr_of should probably involve wp_lvalue
-  Lemma type_addr_of f e ot (T : val → _):
-    typed_addr_of ge f e (λ l β ty, T l (l @ frac_ptr β ty))
-    ⊢ typed_val_expr ge f (Eaddrof e ot) T.
+  Lemma type_addrof f e ot (T : val → _):
+    typed_lvalue ge f e (λ l, T l (value (tptr ot) l))
+    ⊢ typed_val_expr ge f (Eaddrof e (tptr ot)) T.
   Proof.
     iIntros "Haddr" (Φ) "HΦ". rewrite -wp_addrof.
-    Print typed_addr_of.
-    iApply "Haddr". iIntros (l β ty) "Hl HT".
-    iApply ("HΦ" with "[Hl] HT").
-    iSplit => //.
-  Qed. *)
+    iApply "Haddr". iIntros ((?,?)) "HT".
+    iApply ("HΦ" with "[] HT").
+    rewrite /value; simpl_type; iPureIntro.
+    split3; try done.
+    rewrite /has_layout_val value_fits_eq /=.
+    intros _; rewrite /tc_val.
+    by simple_if_tac.
+  Qed.
 
   Lemma simplify_frac_ptr (v : val) (p : address) cty ty β T:
     (<affine> ⌜v = p⌝ -∗ p ◁ₗ{β} ty -∗ T)
@@ -206,7 +208,7 @@ Section own.
   Definition type_offset_of_sub_inst := [instance type_offset_of_sub].
   Global Existing Instance type_offset_of_sub_inst. *)
 
-  Lemma type_lvar_expr f x cty T:
+  (*Lemma type_lvar_expr f x cty T:
     match access_mode cty with By_reference | By_copy => True | _ => False end →
     find_in_context (FindLvar cty x) (λ ty, ∀ b, env.lvar x cty b -∗ T (adr2val (b, Ptrofs.zero)) ((b, Ptrofs.zero) @ frac_ptr Own ty))
     ⊢ typed_val_expr ge f (Evar x cty) T.
@@ -231,7 +233,7 @@ Section own.
     intros; iIntros "(Hgvar & HT)" (Φ) "HΦ".
     rewrite -wp_expr_ptr // -wp_var_global0 //; iFrame.
     by iApply ("HΦ" with "Hgvar").
-  Qed.
+  Qed.*)
 
   Lemma type_cast_ptr_ptr f e ot T:
     is_tptr (typeof e) = true →

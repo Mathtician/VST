@@ -290,7 +290,7 @@ Section judgements.
 
   Definition typed_lvalue f e T : assert :=
     (∀ Φ:address->assert, 
-      (∀ (l:address) β (ty : type), l ◁ₗ{β} ty -∗ T l β ty -∗ Φ l)
+      (∀ (l:address), T l -∗ Φ l)
       -∗ wp_lvalue ge ⊤ f e Φ).
   Global Arguments typed_lvalue _ _ _%_I.
   Class TypedLvalue f (e : expr) : Type :=
@@ -416,7 +416,8 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
      wp_lvexpr f e Φ)%I.
 
   (** [typed_addr_of e] typechecks an address of operation on the expression [e].
-  The typing rule for [typed_addr_of] typechecks [e] and then dispatches to [typed_addr_of_end]*)
+  The typing rule for [typed_addr_of] typechecks [e] and then dispatches to [typed_addr_of_end].
+  We probably replaced this with typed_lvalue. *)
   Definition typed_addr_of f (e : expr) (T : address → own_state → type → assert) : assert :=
     ∀ (Φ: val->assert),
        (∀ (l : address) β ty, l ◁ₗ{β} ty -∗ T l β ty -∗ Φ l) -∗
@@ -544,7 +545,7 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
   Fixpoint find_place_ctx f (e : expr) : option ((list place_ectx_item → address → assert) → assert) :=
     match e with
     | Etempvar _ cty => Some (λ T, typed_val_expr f e (λ v ty, v ◁ᵥₐₗ|cty| ty -∗ ∃ l, <affine> ⌜v = adr2val l⌝ ∗ T [] l)%I)
-    | Evar _ cty => Some (λ T, typed_lvalue f e (λ l β ty, l ◁ₗ{β} ty -∗ T [] l)%I)
+    | Evar x cty => Some (λ T, typed_lvalue f e (λ l, T [] l)%I)
     | Ederef e cty => T' ← find_place_ctx f e; Some (λ T, T' (λ K l, T (if is_lvalue e then K ++ [DerefPCtx (typeof e)] else K) l))
     | Efield e m cty => T' ← find_place_ctx f e; Some (λ T, T' (λ K l, match typeof e with
         | Tstruct i _ => T (K ++ [GetMemberPCtx i m]) l | Tunion i _ => T (K ++ [GetMemberUnionPCtx i m]) l | _ => False end))
@@ -597,7 +598,7 @@ Definition typed_read f (atomic : bool) (e : expr) (ot : Ctypes.type) (T : val �
     all: try match goal with
     |  H : context [IntoPlaceCtx _ _] |- _ => rename H into IH
     end; rewrite /wp_lvexpr /=.
-    - iApply "HT"; iIntros (???) "? H".
+    - iApply "HT"; iIntros (?) "H".
       by iApply ("HΦ'" $! []); iApply "H".
     - iApply "HT"; iIntros (??) "? H".
       iDestruct ("H" with "[$]") as (?) "($ & ?)".
@@ -983,10 +984,14 @@ Global Typeclasses Opaque typed_write_end.*)
 
 Definition FindTemp `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_in_context_info assert :=
   {| fic_A := type; fic_Prop ty := x ◁ₜ|cty| ty; |}.
+(*Definition FindLvar `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_in_context_info assert :=
+  {| fic_A := type; fic_Prop ty := x ◁ₗᵥ|cty| ty; |}.*)
+(*Definition FindGvar `{!typeG OK_ty Σ} {cs : compspecs} (x : ident) : @find_in_context_info assert :=
+  {| fic_A := type; fic_Prop ty := ty_own_gvar ty x; |}.*)
 Definition FindLvar `{!typeG OK_ty Σ} {cs : compspecs} cty (x : ident) : @find_in_context_info assert :=
-  {| fic_A := type; fic_Prop ty := x ◁ₗᵥ|cty| ty; |}.
+  {| fic_A := Values.block; fic_Prop l := env.lvar x cty l; |}.
 Definition FindGvar `{!typeG OK_ty Σ} {cs : compspecs} (x : ident) : @find_in_context_info assert :=
-  {| fic_A := type; fic_Prop ty := ty_own_gvar ty x; |}.
+  {| fic_A := Values.block; fic_Prop l := ⎡gvar x l⎤; |}.
 Definition FindLoc `{!typeG OK_ty Σ} {cs : compspecs} (l : address) : @find_in_context_info assert :=
   {| fic_A := own_state * type; fic_Prop '(β, ty) := l ◁ₗ{β} ty; |}.
 Definition FindVal `{!typeG OK_ty Σ} {cs : compspecs} cty (v : val) : @find_in_context_info assert :=
@@ -1021,7 +1026,7 @@ Ltac generate_i2p_instance_to_tc_hook arg c ::=
   | typed_assert ?x1 ?x2 ?x3 => constr:(TypedAssert x1 x2 x3)
   | typed_switch ?x1 ?x2 ?x3 => constr:(TypedSwitch x1 x2 x3)
   | typed_annot_stmt ?x1 ?x2 ?x3 => constr:(TypedAnnotStmt x1 x2 x3)
-  | typed_lvalue ?f ?x => constr:(TypedLvalue f x)
+  | typed_lvalue ?x1 ?x2 ?x3 => constr:(TypedLvalue x1 x2 x3)
   | copy_as ?x1 ?x2 ?x3 => constr:(CopyAs x1 x2 x3)
   | copy_as_defined ?x1 ?x2 ?x3 => constr:(CopyAsDefined x1 x2 x3)
   | _ => fail "unknown judgement" c
@@ -1055,7 +1060,7 @@ Section typing.
   Global Existing Instance find_in_context_type_temp_id_inst | 1.
 
   Lemma find_in_context_type_lvar_id cty x T:
-    (∃ ty, x ◁ₗᵥ|cty| ty ∗ T ty)
+    (∃ l, env.lvar x cty l ∗ T l)
     ⊢ find_in_context (FindLvar cty x) T.
   Proof. iDestruct 1 as (v) "[Hl HT]". iExists _ => /=. iFrame. Qed.
   Definition find_in_context_type_lvar_id_inst :=
@@ -1063,7 +1068,7 @@ Section typing.
   Global Existing Instance find_in_context_type_lvar_id_inst | 1.
 
   Lemma find_in_context_type_gvar_id x T:
-    (∃ ty, ty_own_gvar ty x ∗ T ty)
+    (∃ l, ⎡gvar x l⎤ ∗ T l)
     ⊢ find_in_context (FindGvar x) T.
   Proof. iDestruct 1 as (v) "[Hl HT]". iExists _ => /=. iFrame. Qed.
   Definition find_in_context_type_gvar_id_inst :=
@@ -1172,9 +1177,9 @@ Section typing.
     := {| rt_fic := FindLoc l |}.
   Global Instance related_to_temp A cty i ty : RelatedTo (λ x : A, i ◁ₜ|cty| ty x)%I | 100
     := {| rt_fic := FindTemp cty i |}.
-  Global Instance related_to_lvar A cty i ty : RelatedTo (λ x : A, i ◁ₗᵥ|cty| ty x)%I | 100
+  Global Instance related_to_lvar A cty i l : RelatedTo (λ x : A, env.lvar i cty (l x))%I | 100
     := {| rt_fic := FindLvar cty i |}.
-  Global Instance related_to_gvar A i ty : RelatedTo (λ x : A, ty_own_gvar (ty x) i)%I | 100
+  Global Instance related_to_gvar A i l : RelatedTo (λ x : A, ⎡gvar i (l x)⎤)%I | 100
     := {| rt_fic := FindGvar i |}.
   Global Instance related_to_val A cty v ty : RelatedTo (λ x : A, (valinject cty v) ◁ᵥ|cty| ty x)%I | 100
     := {| rt_fic := FindValP v |}.
@@ -2080,6 +2085,83 @@ Section typing.
   Definition type_temp_copy_inst := [instance type_temp_copy].
   Global Existing Instance type_temp_copy_inst | 10.
 
+  (* lvars interact with the typed_read/typed_write machinery, so for now, we'll desugar them
+     instead of writing rules on them.
+  Lemma type_lvar_copy ge f x cty T:
+    find_in_context (FindLvar cty x) (λ ty, <affine> ⌜CopyAs ty⌝ ∗ (x ◁ₗᵥ|cty| ty -∗ ∀ l, T l Own ty))
+    ⊢ typed_lvalue ge f (Evar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (ty) "[(% & Hx & Hv) (% & HT)]".
+    Search ty_own Shr.
+    Print CopyAs.
+    iMod (copy_shr_acc with "Hv").
+    iIntros (Φ) "HΦ".
+    iDestruct ("HT" with "[$Hx $Hv]") as "(% & HT)".
+
+    iApply wp_var_local; iFrame.
+    iIntros "Hx"; 
+    Print Copyable.
+    iApply ("HΦ" with "Hv HT").
+  Qed. *)
+
+  Lemma lvar_simplify ot x ty T:
+    (∀ l, env.lvar x ot l -∗ (l, Ptrofs.zero) ◁ₗ ty -∗ T)
+    ⊢ simplify_hyp (x ◁ₗᵥ|ot| ty) T.
+  Proof. iIntros "HT (% & ? & ?)". by iApply ("HT" with "[$]"). Qed.
+  Definition lvar_simplify_inst := [instance lvar_simplify with 0%N].
+  Global Existing Instance lvar_simplify_inst.
+
+  Lemma gvar_simplify x ty T:
+    (∀ l, ⎡gvar x l⎤ -∗ (l, Ptrofs.zero) ◁ₗ ty -∗ T)
+    ⊢ simplify_hyp (ty_own_gvar ty x) T.
+  Proof. iIntros "HT (% & ? & ?)". by iApply ("HT" with "[$]"). Qed.
+  Definition gvar_simplify_inst := [instance gvar_simplify with 0%N].
+  Global Existing Instance gvar_simplify_inst.
+
+  Lemma type_lvar ge f x cty `{!TCElemOf x (map fst (fn_vars f))} T:
+    find_in_context (FindLvar cty x) (λ l, env.lvar x cty l -∗ T (l, Ptrofs.zero))
+    ⊢ typed_lvalue ge f (Evar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (?) "[? HT]".
+    iIntros (Φ) "HΦ".
+    iApply wp_var_local; iFrame.
+    iIntros "?".
+    by iApply "HΦ"; iApply "HT".
+  Qed.
+  Definition type_lvar_inst := [instance type_lvar with 0%N].
+  Global Existing Instance type_lvar_inst.
+
+  (*Lemma type_gvar ge f x cty {H : TCForall (λ i, TCDone (x ≠ i)) (map fst (fn_vars f))} T:
+    find_in_context (FindGvar x) (λ ty, ∀ l, ⎡gvar x l⎤ -∗ T (l, Ptrofs.zero))
+    ⊢ typed_lvalue ge f (Evar x cty) T.
+  Proof.
+    rewrite /find_in_context /=.
+    iDestruct 1 as (? ty) "[? HT]".
+    iIntros (Φ) "HΦ".
+    iApply wp_var_global; first done; iFrame.
+    iIntros "?".
+    by iApply "HΦ"; iApply "HT".
+  Qed.
+  Definition type_gvar_inst := [instance type_gvar with 1%N].
+  Global Existing Instance type_gvar_inst | 5.*)
+
+  Lemma type_gvar ge f x cty l {H : TCForall (λ i, TCDone (x ≠ i)) (map fst (fn_vars f))}
+    {Hx : TCEq (Genv.find_symbol ge x) (Some l)} T:
+    T (l, Ptrofs.zero)
+    ⊢ typed_lvalue ge f (Evar x cty) T.
+  Proof.
+    iIntros "HT" (Φ) "HΦ".
+    iApply wp_var_global0.
+    { rewrite TCForall_Forall List.Forall_forall in H.
+      by intros ?%H. }
+    { by rewrite Hx. }
+    by iApply "HΦ"; iApply "HT".
+  Qed.
+  Definition type_gvar_inst := [instance type_gvar with 0%N].
+  Global Existing Instance type_gvar_inst | 5.
+
   Lemma type_read_lvalue ge f e T:
     is_lvalue e = true →
     type_is_by_value (typeof e) = true ->
@@ -2158,12 +2240,12 @@ Section typing.
     iMod ("Hc" with "[$]") as "[? ?]". iExists _. iFrame. by iApply ("HT" with "[$]").
   Qed.
 
-  Lemma type_read_copy a β l ty cty E {HC: CopyAsDefined l β ty} (T:val → type → type → assert):
-    <affine> ⌜type_is_by_value cty = true⌝ ∗
+  Lemma type_read_copy a β l ty cty E {HC: CopyAsDefined l β ty} {H : TCEq (type_is_by_value cty) true} (T:val → type → type → assert):
     ((HC (λ ty', <affine> ⌜ty'.(ty_has_op_type) cty MCCopy⌝ ∗ <affine> ⌜mtE ⊆ E⌝ ∗ ∀ v, T v (ty' : type) ty')).(i2p_P))
     ⊢ typed_read_end a E l β ty cty T.
   Proof.
-    iIntros "[% Hs] Hl". iDestruct (i2p_proof with "Hs Hl") as (ty') "(Hl&%&%&%&%&HT)".
+    apply TCEq_eq in H.
+    iIntros "Hs Hl". iDestruct (i2p_proof with "Hs Hl") as (ty') "(Hl&%&%&%&%&HT)".
     destruct β.
     - iApply fupd_mask_intro; [destruct a; solve_ndisj|]. iIntros "Hclose".
       iDestruct (ty_aligned with "Hl") as %?; [done|].
@@ -2242,7 +2324,7 @@ Section typing.
   (* typed_lvalue e (typed_write_end ...)   *)
 
   (* Ke: a simple version of type_write that treat typed_place as just typed_val_expr. 
-         Not so sure about what's inside typed_val_expr outside of typed_write_end. *)
+         Not so sure about what's inside typed_val_expr outside of typed_write_end.
   Lemma type_write_simple ge f (a : bool) ty T e v ot:
     (typed_lvalue ge f e (λ l β ty1,
       typed_write_end a ⊤ ot v ty l β ty1 (λ ty3:type, l ◁ₗ{β} ty3 -∗ T)))%I
@@ -2258,7 +2340,7 @@ Section typing.
     iMod ("typed_write_end" with "Hv own_v") as "($ & $ & H)". iModIntro. iModIntro.
     iIntros "l↦". iMod ("H" with "l↦") as (ty3) "[own_l T]".
     by iApply "T".
-  Qed.
+  Qed. *)
 
   Lemma type_write_own_copy a E ty l2 ty2 v ot (T:type->assert):
     typed_write_end a E ot v ty l2 Own ty2 T where

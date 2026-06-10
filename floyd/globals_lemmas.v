@@ -784,8 +784,8 @@ destruct sz; apply derives_refl.
   apply align_compatible_rec_by_value_inv with (ch:=ch) in H0; auto.
   apply align_compatible_rec_by_value with (ch:=ch); auto.
    apply Z.divide_add_r; auto.
-  clear - H8. subst t. 
-  destruct sz; inv H8; simpl; (apply Z.mod_divide; [lia | reflexivity]).
+  clear - H8. subst t. simpl in H8 |-*. 
+  destruct sz; inv H8; simpl; (apply Z.mod_divide; [compute; lia | reflexivity]).
   unfold Ptrofs.max_unsigned.
   lia.
  }
@@ -819,7 +819,7 @@ destruct sz; apply derives_refl.
   apply Z.divide_mul_l; auto.
   clear - t H4.
   subst t.
-  destruct sz; inv H4; simpl; (apply Z.mod_divide; [lia | reflexivity]).
+  destruct sz; inv H4; simpl; (apply Z.mod_divide; [compute; lia | reflexivity]).
   pose proof (Zlength_nonneg data); lia.
 Qed.
 
@@ -1582,7 +1582,8 @@ split3; auto. apply I.
 split3.
 simpl. unfold sizeof; simpl.  lia.
 2: apply I.
-red. constructor; auto. intros. lia. 
+red. constructor; auto. intros. lia.
+rewrite predicates_hered.prop_true_andp; auto. lia.
 -
 unfold sizeof; simpl.
 rewrite Z.max_r by lia.
@@ -1596,12 +1597,14 @@ normalize.
 assert (field_compatible0 (Tarray (Tpointer t' noattr) n noattr) (ArraySubsc 0::nil) (gz i)).
 { rewrite H9; split3; auto. apply I. split; auto. simpl. unfold sizeof; simpl.
    rewrite Z.max_r by lia. lia.
-  split. red. apply align_compatible_rec_Tarray. intros.
-     eapply align_compatible_rec_by_value. reflexivity.
-     simpl.
+  split; [ | simpl; split; auto; lia].
+  apply align_compatible_rec_Tarray. intros.
+  eapply align_compatible_rec_by_value. reflexivity.
+   simpl.
   rewrite H8 in H9; unfold globals_of_env in H9. destruct (Map.get (ge_of rho) i); inv H9.
-  normalize. apply Z.divide_mul_l. unfold Mptr.  destruct Archi.ptr64; exists 1; simpl; auto.
-  simpl. split; auto. lia.
+  normalize. apply Z.divide_mul_l.
+  unfold Mptr.
+  destruct Archi.ptr64; first [exists 1; simpl; lia | exists 2; simpl; lia].
 }
 assert (Halign: (align_chunk Mptr | Ptrofs.unsigned i0)). {
   rewrite H8 in H9;
@@ -1631,7 +1634,8 @@ rewrite <- (Z2Nat.id n) in H11 by lia.
 unfold Zrepeat.
 clear - H10 H11 H13 Halign.
 revert i0 H10 H11 Halign; induction (Z.to_nat n); intros; simpl.
-rewrite Nat.mul_0_r; apply derives_refl.
+rewrite Nat.mul_0_r.
+rewrite derives_eq. apply predicates_hered.andp_left2. apply predicates_hered.derives_refl.
 autorewrite with sublist. normalize.
 rewrite mapsto_memory_block.address_mapsto_zeros_eq in *.
 rewrite Nat2Z.inj_mul.

@@ -1107,7 +1107,7 @@ intros.
    apply decode_val_Vubyte_inj in H0,H1,H2,H3. subst.
    apply (predicates_hered.exp_right [Byte b0; Byte b1; Byte b2; Byte b3]).
      rewrite predicates_hered.prop_true_andp.
-      2:{ split3. reflexivity. reflexivity. apply AL. }
+      2:{ split3. reflexivity. reflexivity. split; [ | apply AL]. simpl. lia. }
   match goal with |- predicates_hered.derives ?A ?B => 
         assert (EQ: A=B); [ | rewrite EQ; apply predicates_hered.derives_refl]
     end.
@@ -1116,7 +1116,7 @@ intros.
  -
   repeat change (exp ?A) with (predicates_hered.exp A).
       normalize.normalize.
-  intros bl [? [? ?]]. simpl snd in H1.
+  intros bl [? [? [Hsize H1]]]. simpl snd in H1. simpl in Hsize.
       destruct bl as [|c0 [| c1 [| c2 [| c3 [|]]]]]; inv H.
        unfold decode_val, proj_bytes in H0. rewrite AP in H0. clear AP.
        destruct c0; try discriminate H0.
@@ -1138,7 +1138,7 @@ intros.
       normalize.normalize.
      apply predicates_hered.exp_right with [Byte b0].
      rewrite !predicates_hered.prop_true_andp by 
-     (split3; [ reflexivity |  | apply Z.divide_1_l  ];
+     (split; [ | split3]; [ reflexivity | | simpl; rep_lia | apply Z.divide_1_l  ];
      unfold decode_val, Vubyte; simpl; f_equal;
      rewrite decode_int_single;
      apply zero_ext_inrange; change (two_p _ - 1) with 255;
@@ -1350,7 +1350,7 @@ Lemma address_mapsto_8bytes_forward:
     (b : block)
     (i : ptrofs)
     (SZ : Ptrofs.unsigned i + 8 < Ptrofs.modulus)
-    (AL : (8 | Ptrofs.unsigned i))
+    (AL : (Archi.align_int64 | Ptrofs.unsigned i))
     (r : readable_share sh),
 predicates_hered.derives
  (predicates_sl.sepcon
@@ -1413,7 +1413,8 @@ intros.
     apply decode_val_Vubyte_inj in H0,H1,H2,H3,H4,H5,H6,H7; subst.
    apply (predicates_hered.exp_right (map Byte [b0;b1;b2;b3;b4;b5;b6;b7])).
      rewrite predicates_hered.prop_true_andp.
-      2:{ split3. reflexivity. reflexivity. apply AL. }
+      2:{ split3. reflexivity. reflexivity. split. simpl; lia. apply AL.
+ }
    rewrite address_mapsto_8bytes_aux; auto.
 Qed.
 
@@ -1488,9 +1489,9 @@ Proof.
  rewrite (prop_true_andp (field_compatible tulong [] p)) by auto.
  destruct H as [H0 [_ [SZ [AL _]]]]. red in SZ. simpl sizeof in SZ.
    destruct p; inversion H0. clear H0.
- assert (8 | Ptrofs.unsigned i)
-   by (eapply align_compatible_rec_by_value_inv in AL; [ | reflexivity]; assumption).
- clear AL.
+ eapply align_compatible_rec_by_value_inv in AL; [ | reflexivity].
+ simpl in AL.
+ let a := constr:(Archi.align_int64) in let b := eval compute in a in change a with b in AL.
  Intros.
  unfold at_offset.
  rewrite !offset_offset_val. rewrite !Z.add_0_r.
@@ -1507,7 +1508,7 @@ Proof.
  rewrite !(prop_true_andp (tc_val' tulong _)) by (apply tc_val_tc_val'; apply Logic.I).
  rewrite ?(prop_true_andp _ _ (Z.divide_1_l _)).
  rewrite !orp_FF.
- rewrite (prop_true_andp (_ | _)) by apply H.
+ rewrite (prop_true_andp (_ | _)) by apply AL.
  if_tac.
 -
  rewrite derives_eq.
@@ -1722,7 +1723,7 @@ Proof.
     2:{ split3. reflexivity. unfold decode_val. simpl.
         f_equal. apply zero_ext_16. 
         pose proof (decode_int_range [b0; b1]). simpl in H.
-        assert (two_power_pos 16 = 65536) by reflexivity. lia. apply AL. 
+        assert (two_power_pos 16 = 65536) by reflexivity. lia. split. simpl; lia. apply AL. 
       }
   match goal with |- predicates_hered.derives ?A ?B => 
         assert (EQ: A=B); [ | rewrite EQ; apply predicates_hered.derives_refl]
@@ -1730,8 +1731,8 @@ Proof.
   apply address_mapsto_2bytes_aux; auto.
  - repeat change (exp ?A) with (predicates_hered.exp A).
    normalize.normalize.
-   intros bl [? [? ?]].
-    simpl snd in H1.
+   intros bl [? [? [Hsize ?]]].
+    simpl snd in H1. simpl in Hsize.
    destruct bl as [|c0 [| c1 [| c2 [| c3 [|]]]]]; inv H.
    unfold decode_val, proj_bytes in H0.
    destruct c0; try solve [destruct Archi.ptr64 eqn:AP; discriminate].
@@ -1748,7 +1749,7 @@ Proof.
   normalize.normalize.
   apply predicates_hered.exp_right with [Byte b0].
   rewrite !predicates_hered.prop_true_andp by 
- (split3; [ reflexivity |  | apply Z.divide_1_l  ];
+ (split; [ | split3]; [ reflexivity |  | simpl; rep_lia | apply Z.divide_1_l  ];
  unfold decode_val, Vubyte; simpl; f_equal;
  rewrite decode_int_single;
  apply zero_ext_inrange; change (two_p _ - 1) with 255;

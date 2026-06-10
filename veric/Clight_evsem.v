@@ -30,6 +30,7 @@ Inductive load_bitfieldT: type -> intsize -> signedness -> Z -> Z -> mem -> bloc
   | load_bitfield_intro: forall sz sg1 attr sg pos width m b ofs c bytes,
       0 <= pos -> 0 < width <= bitsize_intsize sz -> pos + width <= bitsize_carrier sz ->
       sg1 = (if zlt width (bitsize_intsize sz) then Signed else sg) ->
+       Ptrofs.unsigned ofs + size_chunk (chunk_for_carrier sz) <= Ptrofs.modulus ->
       (align_chunk (chunk_for_carrier sz) | (Ptrofs.unsigned ofs)) ->
       Mem.loadbytes m b (Ptrofs.unsigned ofs) (size_chunk (chunk_for_carrier sz)) = Some bytes ->
       decode_val (chunk_for_carrier sz) bytes = Vint c ->
@@ -38,6 +39,7 @@ Inductive load_bitfieldT: type -> intsize -> signedness -> Z -> Z -> mem -> bloc
 
 Inductive deref_locT (ty : type) (m : mem) (b : block) (ofs : ptrofs) : bitfield -> val -> list mem_event -> Prop :=
     deref_locT_value : forall (chunk : memory_chunk) bytes,
+                      Ptrofs.unsigned ofs + size_chunk chunk <= Ptrofs.modulus ->
                       access_mode ty = By_value chunk ->
                       (align_chunk chunk | (Ptrofs.unsigned ofs)) ->
                       Mem.loadbytes m b (Ptrofs.unsigned ofs) (size_chunk chunk) = Some bytes ->
@@ -48,8 +50,7 @@ Inductive deref_locT (ty : type) (m : mem) (b : block) (ofs : ptrofs) : bitfield
   | deref_locT_bitfield : forall (sz : intsize) 
                            (sg : signedness) (pos width : Z) 
                            (v : val) bytes,
-                         load_bitfieldT ty sz sg pos width m 
-                           b ofs v bytes ->
+                         load_bitfieldT ty sz sg pos width m b ofs v bytes ->
                          deref_locT ty m b ofs (Bits sz sg pos width) v (Read b (Ptrofs.unsigned ofs) (size_chunk (chunk_for_carrier sz)) bytes :: nil)
 .
 
@@ -57,23 +58,30 @@ Lemma deref_locT_ax1 a m loc ofs v bf T (D:deref_locT (typeof a) m loc ofs bf v 
       deref_loc (typeof a) m loc ofs bf v.
 Proof. 
   inv D.
-  + eapply deref_loc_value; eauto. eapply Mem.loadbytes_load; eauto.
+  + eapply deref_loc_value; eauto.
+     simpl. 
+     destruct (zle _ _); [ | lia].
+ eapply Mem.loadbytes_load; eauto.
   + apply deref_loc_reference; trivial.
   + apply deref_loc_copy; trivial.
   + inv H; apply deref_loc_bitfield; constructor; auto.
-    rewrite <- H7; apply Mem.loadbytes_load; auto.
+     simpl. 
+     destruct (zle _ _); [ | lia].
+    rewrite <- H8; apply Mem.loadbytes_load; auto.
 Qed.
 
 Lemma deref_locT_ax2 a m loc ofs bf v (D:deref_loc (typeof a) m loc ofs bf v):
       exists T, deref_locT (typeof a) m loc ofs bf v T.
 Proof. 
   inv D.
-  + exploit Mem.load_valid_access; eauto. intros [_ ALGN].
+  + simpl in H0. destruct (zle _ _) in H0; [ | discriminate].
+    exploit Mem.load_valid_access; eauto. intros [_ ALGN].
     exploit Mem.load_loadbytes; eauto. intros [bytes [LD V]]; subst v.
     eexists; eapply deref_locT_value; eauto. 
   + eexists; apply deref_locT_reference; trivial.
   + eexists; apply deref_locT_copy; trivial.
   + inv H.
+    simpl in H5. destruct (zle _ _) in H5; [ | discriminate]. 
     exploit Mem.load_valid_access; eauto. intros [_ ALGN].
     exploit Mem.load_loadbytes; eauto. intros [bytes [LD V]].
     eexists; apply deref_locT_bitfield; constructor; eauto.
@@ -345,6 +353,7 @@ Inductive store_bitfieldT: type -> intsize -> signedness -> Z -> Z -> mem -> blo
   | store_bitfield_intro: forall sz sg1 attr sg pos width m b ofs c n m' bytes,
       0 <= pos -> 0 < width <= bitsize_intsize sz -> pos + width <= bitsize_carrier sz ->
       sg1 = (if zlt width (bitsize_intsize sz) then Signed else sg) ->
+      Ptrofs.unsigned ofs + size_chunk (chunk_for_carrier sz) <= Ptrofs.modulus ->
       (align_chunk (chunk_for_carrier sz) | (Ptrofs.unsigned ofs)) ->
       Mem.loadbytes m b (Ptrofs.unsigned ofs) (size_chunk (chunk_for_carrier sz)) = Some bytes ->
       decode_val (chunk_for_carrier sz) bytes = Vint c ->
@@ -388,8 +397,9 @@ Lemma assign_locT_ax1 ce ty m b ofs bf v m' T (A:assign_locT ce ty m b ofs bf v 
     assign_loc ce ty m b ofs bf v m'.
 Proof.
   destruct A; [eapply assign_loc_value; eauto | eapply assign_loc_copy; eauto | eapply assign_loc_bitfield; eauto].
-  inv H; econstructor; eauto.
-  rewrite <- H6; apply Mem.loadbytes_load; auto.
+  inv H; econstructor; eauto; simpl; destruct (zle _ _); try lia.
+  - rewrite <- H7; apply Mem.loadbytes_load; auto.
+  - apply H8.
 Qed.
 
 Lemma assign_locT_ax2 ce ty m b ofs bf v m' (A:assign_loc ce ty m b ofs bf v m'):
@@ -397,6 +407,7 @@ Lemma assign_locT_ax2 ce ty m b ofs bf v m' (A:assign_loc ce ty m b ofs bf v m')
 Proof.
   inv A; [eexists; eapply assign_locT_value; eauto | eexists; eapply assign_locT_copy; eauto|].
   inv H.
+  simpl in H4, H5. destruct (zle _ _) in H4,H5; [ | discriminate].
   exploit Mem.load_valid_access; eauto. intros [_ ALGN].
   eapply Mem.load_loadbytes in H4 as (? & ? & ?).
   eexists; econstructor; econstructor; eauto.
@@ -414,16 +425,18 @@ Lemma assign_locT_elim ce ty m b ofs bf v m1 T (A:assign_locT ce ty m b ofs bf v
     assign_locT ce ty mm b ofs bf v mm1 T.
 Proof.
   inv A; simpl.
-  - exploit Mem.store_valid_access_3; eauto. intros [_ A].
+  - simpl in H0. destruct (zle _ _) in H0; [ | discriminate].
+    exploit Mem.store_valid_access_3; eauto. intros [_ A].
     apply Mem.store_storebytes in H0.
     split. { exists m1; split; trivial. }
     intros. destruct E as [? [? ?]]; subst. econstructor; eauto.
+   simpl. destruct (zle _ _); [ | lia].
     apply Mem.storebytes_store; eassumption.
   - split. { split; [trivial | exists m1; split; trivial]. }
     intros. destruct E as [LD [? [? ?]]]; subst.
     constructor; eassumption.
   - inv H.
-    apply Mem.store_storebytes in H7.
+    apply Mem.store_storebytes in H8.
     split. { split; [trivial | exists m1; split; trivial]. }
     intros. destruct E as [LD [? [? ?]]]; subst.
     econstructor; constructor; eauto.
@@ -994,16 +1007,18 @@ Lemma assign_locT_sub: forall ce ty m b ofs bf v m' T m1, assign_locT ce ty m b 
   mem_sub m m1 -> exists m1', mem_sub m' m1' /\ assign_locT ce ty m1 b ofs bf v m1' T.
 Proof.
   inversion 1; subst; intros.
-  - exploit Mem.store_valid_access_3; eauto; intros [].
+  - simpl in H1; destruct (zle _ _) in H1; [ | discriminate].
+    exploit Mem.store_valid_access_3; eauto; intros [].
     eapply Mem.store_storebytes, storebytes_sub in H1 as (? & ? & ?); eauto.
     do 2 eexists; eauto; constructor; auto.
+    simpl. destruct (zle _ _); [ | lia].
     apply Mem.storebytes_store; auto.
   - eapply mem_sub_loadbytes in H4; eauto.
     eapply storebytes_sub in H5 as (? & ? & ?); eauto.
     do 2 eexists; eauto; constructor; auto.
   - inv H0.
-    eapply mem_sub_loadbytes in H7; eauto.
-    eapply Mem.store_storebytes, storebytes_sub in H9 as (? & ? & ?); eauto.
+    eapply mem_sub_loadbytes in H8; eauto.
+    eapply Mem.store_storebytes, storebytes_sub in H10 as (? & ? & ?); eauto.
     do 2 eexists; eauto; econstructor; constructor; eauto.
     apply Mem.storebytes_store; eauto.
 Qed.

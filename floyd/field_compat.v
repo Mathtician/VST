@@ -1062,9 +1062,15 @@ split3.
 -
  eapply align_compatible_rec_by_value_inv in H6; [ | eassumption ].
  eapply align_compatible_rec_by_value; [ eassumption | ].
- apply Z.divide_add_r.
- eapply Z.divide_trans; eassumption.
- eapply Z.divide_trans; try apply align_size_chunk_divides; eassumption.
+ apply Z.divide_add_r; [ | ].
+ apply Z.divide_trans with (align_chunk b); auto.
+ clear - AL H1 H0 NS NB.
+ destruct small  as [ | [ | | | ] [ | ] | [ | ] | [ | ] | | | | |  ]; inv NS;
+ destruct big  as [ | [ | | | ] [ | ] | [ | ] | [ | ] | | | | |  ]; inv NB; simpl in *; auto;
+ try (destruct H0 as [x H0]; lia);
+ let a := constr:(Archi.align_int64) in let b := eval compute in a in change a with b in *;
+ let a := constr:(Archi.align_float64) in let b := eval compute in a in change a with b in *;
+ destruct H1 as [x H1]; exists (2*x)%Z; lia.
 -
   clear - H7 NS NB.
   destruct gfs. apply I.

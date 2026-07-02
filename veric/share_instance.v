@@ -107,7 +107,9 @@ Qed.
 Global Instance share_eq_dec : EqDecision share.
 Proof. intros ??. by destruct (eq_dec x y); [left | right]. Defined.
 
+Set Warnings "-notation-overridden,-hiding-delimiting-key".
 Require Import VST.shared.dshare.
+Set Warnings "notation-overridden,hiding-delimiting-key".
 
 Global Instance dfrac_eq_dec : EqDecision dfrac.
 Proof.

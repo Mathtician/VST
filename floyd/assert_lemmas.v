@@ -225,6 +225,7 @@ Definition for_ret_assert (I: assert) (Post: ret_assert) :=
 Lemma RA_normal_loop2_ret_assert:
   forall Inv R, RA_normal (loop2_ret_assert Inv R) = Inv.
 Proof. destruct R; reflexivity. Qed.
+#[export] Hint Rewrite RA_normal_loop2_ret_assert : ret_assert.
 
 Lemma overridePost_normal:
   forall P Q, overridePost P (normal_ret_assert Q) = normal_ret_assert P.
@@ -333,7 +334,7 @@ Proof.
  intros.
  red.
  destruct (tc_eval_gvar_zero _ _ _ _ H H0 H1) as [b ?].
- rewrite H2. destruct (eqb_type _ _); apply Coq.Init.Logic.I.
+ rewrite H2. destruct (eqb_type _ _); apply Logic.I.
 Qed.
 
 Lemma local_lift2_and: forall (P Q : environ -> Prop), (local (`and P Q) : assert) =

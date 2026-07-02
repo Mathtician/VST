@@ -294,6 +294,8 @@ Lemma liftx_local_retval:
    `(local (`P retval)) (get_result1 i) = local (`P (eval_id i)).
 Proof. intros. reflexivity. Qed.*)
 
+#[export] Hint Rewrite bool_val_notbool_ptr using apply Logic.I : norm.
+
 Lemma Vint_inj': forall i j,  (Vint i = Vint j) = (i=j).
 Proof. intros; apply prop_ext; split; intro; congruence. Qed.
 
@@ -355,6 +357,21 @@ destruct x; try tauto; intuition (try congruence);
 revert H0; simple_if_tac; intro H0; inv H0.
 Qed.
 
+<<<<<<< HEAD
+=======
+#[export] Hint Rewrite typed_true_isptr using apply Logic.I : norm.
+
+Ltac super_unfold_lift_in H :=
+   cbv delta [liftx LiftEnviron Tarrow Tend lift_S lift_T
+    lift_prod lift_last lifted lift_uncurry_open lift_curry lift lift0
+    lift1 lift2 lift3] beta iota in H.
+
+Ltac super_unfold_lift' :=
+  cbv delta [liftx LiftEnviron Tarrow Tend lift_S lift_T
+    lift_prod lift_last lifted lift_uncurry_open lift_curry lift lift0
+    lift1 lift2 lift3] beta iota.
+
+>>>>>>> origin/master
 Lemma tc_eval'_id_i:
   forall Delta t i rho,
                tc_environ Delta rho ->
@@ -436,6 +453,11 @@ try rewrite (is_true_negb _ H); try rewrite (is_true_negb _ H0);
 destruct v; inv H1; auto.
 Qed.
 
+<<<<<<< HEAD
+=======
+#[export] Hint Rewrite sem_cast_pointer2' using (try apply Logic.I; try assumption; reflexivity) : norm.
+
+>>>>>>> origin/master
 Lemma sem_cast_pointer2:
   forall v t1 t2 t3 t1' t2',
    t1' = Tpointer t1 noattr ->
@@ -1874,6 +1896,52 @@ Ltac make_sequential :=
   | |- _ => apply sequential
   end.
 
+<<<<<<< HEAD
+=======
+Lemma isptr_force_ptr'' : forall p Q,
+    (isptr p -> Q) ->
+    (isptr (force_ptr p) -> Q).
+Proof.
+intros.
+apply X.
+destruct p; inv H; apply Logic.I.
+Qed.
+
+Lemma isptr_offset_val'': forall i p Q,
+    (isptr p -> Q) ->
+    (isptr (offset_val i p) -> Q).
+Proof.
+intros.
+apply X.
+destruct p; inv H; apply Logic.I.
+Qed.
+
+Lemma ptr_eq_e': forall v1 v2 B,
+   (v1=v2 -> B) ->
+   (ptr_eq v1 v2 -> B).
+Proof.
+intuition. apply X. apply ptr_eq_e; auto.
+Qed.
+
+Lemma typed_false_of_bool':
+ forall x (P: Prop),
+    ((x=false) -> P) ->
+    (typed_false tint (bool2val x) -> P).
+Proof.
+intuition.
+apply H, typed_false_of_bool; auto.
+Qed.
+
+Lemma typed_true_of_bool':
+ forall x (P: Prop),
+    ((x=true) -> P) ->
+    (typed_true tint (bool2val x) -> P).
+Proof.
+intuition.
+apply H, typed_true_of_bool; auto.
+Qed.
+
+>>>>>>> origin/master
 Ltac intro_if_new :=
  repeat match goal with
   | |- ?A -> _ => ((assert A by auto; fail 1) || fail 1) || intros _

@@ -165,12 +165,12 @@ Definition load_store_init_data1 (ge: Genv.t fundef type) (m: mem) (b: block) (p
 
 Definition initializer_aligned (z: Z) (d: init_data) : bool :=
   match d with
-  | Init_int16 n => Zeq_bool (z mod 2) 0
-  | Init_int32 n => Zeq_bool (z mod 4) 0
-  | Init_int64 n => Zeq_bool (z mod 8) 0
-  | Init_float32 n =>  Zeq_bool (z mod 4) 0
-  | Init_float64 n =>  Zeq_bool (z mod 8) 0
-  | Init_addrof symb ofs =>  Zeq_bool (z mod (size_chunk Mptr)) 0
+  | Init_int16 n => Z.eqb (z mod 2) 0
+  | Init_int32 n => Z.eqb (z mod 4) 0
+  | Init_int64 n => Z.eqb (z mod 8) 0
+  | Init_float32 n =>  Z.eqb (z mod 4) 0
+  | Init_float64 n =>  Z.eqb (z mod 8) 0
+  | Init_addrof symb ofs =>  Z.eqb (z mod (size_chunk Mptr)) 0
   | _ => true
   end.
 
@@ -634,11 +634,128 @@ Transparent load.
                  iPureIntro; repeat split; auto; try solve [apply Zmod_divide; [intro Hx; inv Hx | apply Zeq_bool_eq; auto]]).
 Opaque load.
 * (* Int8 *)
+<<<<<<< HEAD
   apply Zone_divide.
 * (* Float64 *)
   clear - AL.
   simpl in AL. apply Zmod_divide. intro Hx; inv Hx. apply Zeq_bool_eq; auto.
   rewrite <- Zeq_is_eq_bool in *; simpl.
+=======
+  apply Z.divide_1_l.
+* (* Int8 *)
+  intro loc; specialize (H2 loc).
+  simpl in H2. hnf. if_tac; auto.
+  exists READABLE.
+  destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1. hnf. rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true by (destruct loc; destruct H; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H4.
+  unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+* (* Int16 *)
+  simpl in AL.
+  apply Z.mod_divide. intro Hx; inv Hx. apply Z.eqb_eq; auto.
+* (* Int16 *)
+  intro loc; specialize (H2 loc).
+  simpl in H2. simpl size_chunk. hnf; if_tac; auto.
+  exists READABLE.
+  destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1. hnf; rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true by (  destruct loc; destruct H; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H4.
+ unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+* (* Int32 *)
+  simpl in AL. apply Z.mod_divide.  intro Hx; inv Hx. apply Z.eqb_eq; auto.
+* (* Int32 *)
+  intro loc; specialize (H2 loc).
+  simpl in H2. simpl size_chunk. hnf; if_tac; auto.
+  exists READABLE.
+  destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1. hnf; rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true by (  destruct loc; destruct H; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H4.
+ unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+* (* Int64 *)
+  simpl in AL. apply Z.mod_divide.  intro Hx; inv Hx. apply Z.eqb_eq; auto.
+* (* Int64 *)
+  intro loc; specialize (H2 loc).
+  simpl in H2. simpl size_chunk. hnf; if_tac; auto.
+  exists READABLE.
+  destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1. hnf; rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true by (  destruct loc; destruct H; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H4.
+ unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+* (* Float32 *)
+  simpl in AL. apply Z.mod_divide.  intro Hx; inv Hx. apply Z.eqb_eq; auto.
+* (* Float32 *)
+  intro loc; specialize (H2 loc).
+  simpl in H2. simpl size_chunk. hnf; if_tac; auto.
+  exists READABLE.
+  destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1. hnf; rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true by (  destruct loc; destruct H; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H4.
+ unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+  rewrite H0.
+  destruct loc; destruct H; subst b0.
+  apply nth_getN; simpl; lia.
+* (* Float64 *)
+   clear - AL.
+  simpl in AL. apply Z.mod_divide.  intro Hx; inv Hx. apply Z.eqb_eq; auto.
+  rewrite Z.eqb_eq in *.
+>>>>>>> origin/master
   apply Zmod_divides; [ lia | ].
   apply Zmod_divides in AL; [ | lia].
   destruct AL as [c ?]. exists (2 * c)%Z. rewrite Z.mul_assoc. apply H.
@@ -660,6 +777,7 @@ Opaque load.
   rewrite /= Z.add_0_r in H3.
   f_equal; apply zero_ext_inj; congruence.
 * (* symbol case *)
+<<<<<<< HEAD
   injection H as H.
   rewrite /genviron2globals /filter_genv /Map.get.
   assert (align_chunk Mptr | z).
@@ -685,6 +803,67 @@ Opaque load.
   rewrite /= Z.add_0_l Nat2Z.inj_add Z2Nat.id //.
   rewrite /inflate_loc Haccess; last by split; auto; lia.
   rewrite /readonly2share /Genv.perm_globvar VOL; simple_if_tac; done.
+=======
+  case_eq (Map.get (filter_genv ge) i); try destruct p0; auto; intros.
++
+  unfold genviron2globals, filter_genv, Map.get in H4|-*.
+  rewrite H4 in *.
+  left. split; [apply I | ]. rewrite Ptrofs.add_zero_l.
+ exists  (getN (size_chunk_nat Mptr) z (mem_contents m3) !! b).
+ repeat split; auto.
+ clear - H. 
+ cbv iota. congruence.
+  simpl in AL. apply Z.mod_divide.  intro Hx; inv Hx. apply Z.eqb_eq; auto.
+  intro loc; specialize (H2 loc). hnf. simpl init_data_size in H2.
+ replace (if Archi.ptr64 then 8 else 4) with (size_chunk Mptr) in H2
+   by (unfold Mptr; destruct Archi.ptr64; reflexivity).
+ if_tac; [ | apply H2].
+  exists READABLE. hnf. 
+  destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1. hnf; rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true
+   by (destruct loc, H,H5; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H6.
+ unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+  rewrite H0.
+  destruct loc; destruct H5.  subst b1.
+  apply nth_getN; simpl; lia.
+  rewrite H0.
+  destruct loc; destruct H5; subst b1.
+  apply nth_getN; simpl; lia.
++
+  unfold genviron2globals. rewrite H4 in *.
+  erewrite mapsto__exp_address_mapsto by (auto; reflexivity).
+  rewrite exp_address_mapsto_VALspec_range_eq.
+  rewrite Ptrofs.unsigned_repr by (change Ptrofs.max_unsigned with (Ptrofs.modulus-1); lia).
+  split.
+  simpl in AL|-*.
+  apply Z.mod_divide.  intro Hx; inv Hx. apply Z.eqb_eq; auto.
+  hnf. intro loc; specialize (H2 loc). hnf.
+  simpl init_data_size in H2.
+ replace (if Archi.ptr64 then 8 else 4) with (size_chunk Mptr) in H2
+   by (unfold Mptr; destruct Archi.ptr64; reflexivity).
+ if_tac; [ | apply H2].
+ destruct H2.
+  apply join_comm in H1.
+  apply (resource_at_join _ _ _ loc) in H1.
+  apply H2 in H1.
+  eexists.
+  hnf. exists READABLE.
+  hnf; rewrite H1.
+  unfold beyond_block. rewrite only_blocks_at.
+  rewrite if_true
+   by (destruct loc, H,H5; subst; apply Plt_strict).
+  unfold inflate_initial_mem. rewrite resource_at_make_rmap.
+  unfold inflate_initial_mem'. rewrite H6.
+ unfold Genv.perm_globvar. rewrite VOL. rewrite preds_fmap_NoneP.
+  destruct (gvar_readonly v);  repeat f_equal; auto with extensionality.
+>>>>>>> origin/master
 Qed.
 
 Lemma init_data_list_size_app:
@@ -860,7 +1039,7 @@ Qed.
 
 Definition all_initializers_aligned (prog: program) :=
   forallb (fun idv => andb (initializers_aligned 0 (gvar_init (snd idv)))
-                                 (Zlt_bool (init_data_list_size (gvar_init (snd idv))) Ptrofs.modulus))
+                                 (Z.ltb (init_data_list_size (gvar_init (snd idv))) Ptrofs.modulus))
                       (prog_vars prog) = true.
 
 Lemma forallb_rev: forall {A} f (vl: list A), forallb f (rev vl) = forallb f vl.

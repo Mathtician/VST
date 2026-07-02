@@ -1,4 +1,4 @@
-Require Import Coq.Logic.FunctionalExtensionality.
+Require Import Stdlib.Logic.FunctionalExtensionality.
 Set Warnings "-notation-overridden,-custom-entry-overridden,-hiding-delimiting-key".
 Require Import VST.veric.juicy_base.
 Require Import VST.veric.res_predicates.

@@ -24,8 +24,7 @@ Require Import VST.veric.Clight_initial_world.
 Require Import VST.veric.initialize.
 Require Import VST.veric.coqlib4.
 Require Export compcert.common.Values.
-Require Import Coq.Logic.JMeq.
-
+Require Import Stdlib.Logic.JMeq.
 Import Ctypes Clight.
 
 Section mpred.

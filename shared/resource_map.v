@@ -7,7 +7,7 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Export auth csum gmap.
 Set Warnings "-notation-overridden,-hiding-delimiting-key".
 From iris_ora.algebra Require Export osum gmap view auth.
-From iris_ora.logic Require Export logic own algebra.
+From iris_ora.logic Require Export logic own.
 From VST.shared Require Export share_alg.
 From VST.shared Require Import shared.
 Set Warnings "notation-overridden,hiding-delimiting-key".

@@ -1,4 +1,4 @@
-Require Export Coq.Sorting.Permutation.
+Require Export Stdlib.Sorting.Permutation.
 Set Warnings "-notation-overridden,-custom-entry-overridden,-hiding-delimiting-key".
 Require Import VST.veric.seplog.
 Require Export VST.veric.lifting_expr.
@@ -230,6 +230,9 @@ Proof.
   + rewrite sep_assoc (sep_comm y x) -sep_assoc //.
   + rewrite IHPermutation1 //.
 Qed.
+
+About semax.
+!! Arguments semax {CS} {Espec} Delta Pre%_assert cmd Post%_assert.
 
 Lemma insert_prop : forall {A} (P: Prop) PP QR, (⌜P⌝ ∧ (@PROPx A Σ PP QR)) = PROPx (P::PP) QR.
 Proof.
@@ -1103,15 +1106,83 @@ Proof.
   f_equal; f_equal; apply prop_ext; rewrite assoc //.
 Qed.
 
+<<<<<<< HEAD
+=======
+Ltac drop_LOCALs l := match l with
+| ?h :: ?t => drop_LOCAL_by_name h; drop_LOCALs t
+| nil => idtac
+end.
+
+Ltac clean_up_app_carefully := (* useful after rewriting by SEP_PROP *)
+ repeat
+  match goal with
+  | |- context [@app Prop (?a :: ?b) ?c] =>
+    change (app (a::b) c) with (a :: app b c)
+  | |- context [@app (environ->Prop) (?a :: ?b) ?c] =>
+    change (app (a::b) c) with (a :: app b c)
+  | |- context [@app (lifted (LiftEnviron Prop)) (?a :: ?b) ?c] =>
+    change (app (a::b) c) with (a :: app b c)
+  | |- context [@app (environ->mpred) (?a :: ?b) ?c] =>
+    change (app (a::b) c) with (a :: app b c)
+  | |- context [@app (lifted (LiftEnviron mpred)) (?a :: ?b) ?c] =>
+    change (app (a::b) c) with (a :: app b c)
+  | |- context [@app Prop nil ?c] =>
+     change (app nil c) with c
+  | |- context [@app (environ->Prop) nil ?c] =>
+     change (app nil c) with c
+  | |- context [@app (lifted (LiftEnviron Prop)) nil ?c] =>
+     change (app nil c) with c
+  | |- context [@app (lifted (environ->mpred)) nil ?c] =>
+     change (app nil c) with c
+  | |- context [@app (lifted (LiftEnviron mpred)) nil ?c] =>
+     change (app nil c) with c
+ end.
+
+Definition not_conj_notation (P: Prop) := True.
+
+Ltac not_conj_notation :=
+ match goal with
+ | |- not_conj_notation (_ <= _ <= _)%Z => fail 1
+ | |- not_conj_notation (_ <= _ < _)%Z => fail 1
+ | |- not_conj_notation (_ < _ <= _)%Z => fail 1
+ | |- not_conj_notation (_ <= _ <= _)%nat => fail 1
+ | |- not_conj_notation (_ <= _ < _)%nat => fail 1
+ | |- not_conj_notation (_ < _ <= _)%nat => fail 1
+ | |- _ => apply Logic.I
+ end.
+
+Lemma split_first_PROP {A}:
+  forall P Q R S,
+  not_conj_notation (P/\Q) ->
+  @PROPx A ((P/\Q)::R) S = PROPx (P::Q::R) S.
+Proof.
+intros. unfold PROPx; simpl.
+extensionality rho.
+apply pred_ext; apply andp_derives; auto;
+  apply prop_derives; tauto.
+Qed.
+#[export] Hint Rewrite @split_first_PROP using not_conj_notation : norm1.
+
+>>>>>>> origin/master
 Lemma perm_derives:
   forall Delta P Q R P' Q' R',
     Permutation P P' ->
     Permutation Q Q' ->
     Permutation R R' ->
+<<<<<<< HEAD
     ENTAIL Delta, PROPx P (LOCALx Q (SEPx R)) ⊢ PROPx P' (LOCALx Q' (SEPx R')).
 Proof.
   intros.
   erewrite bi.and_elim_r, PROPx_Permutation, LOCALx_Permutation, SEPx_Permutation; done.
+=======
+    ENTAIL Delta, PROPx P (LOCALx Q (SEPx R)) |-- PROPx P' (LOCALx Q' (SEPx R')).
+Proof.
+  intros.
+  erewrite PROPx_Permutation by eauto.
+  erewrite LOCALx_Permutation by eauto.
+  erewrite SEPx_Permutation by eauto.
+  apply andp_left2; auto.
+>>>>>>> origin/master
 Qed.
 
 Lemma semax_frame_perm:
@@ -1721,7 +1792,7 @@ Lemma lvar_isptr:
 Proof.
 intros. hnf in H.
 destruct (Map.get (ve_of rho) i) as [[? ?]|]; try contradiction.
-destruct H; subst; apply Coq.Init.Logic.I.
+destruct H; subst; apply Logic.I.
 Qed.
 
 Lemma gvars_isptr:
@@ -1732,7 +1803,7 @@ subst.
 red in H.
 destruct_glob_types i.
 rewrite Heqo0.
-apply Coq.Init.Logic.I.
+apply Logic.I.
 Qed.
 
 Lemma lvar_isptr_eval_var :

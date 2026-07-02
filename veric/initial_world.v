@@ -429,7 +429,7 @@ Proof.
  case_eq (length vl); intros. simpl. auto.
  simpl. replace (S n - n - 1)%nat with O by lia.
  simpl; auto.
- rewrite -> nth_error_app1 by (rewrite rev_length; lia).
+ rewrite -> nth_error_app1 by (rewrite length_rev; lia).
  rewrite -> IHvl by lia. clear IHvl.
  destruct n; destruct (length vl). congruence.
  simpl. replace (n-0)%nat with n by lia; auto.
@@ -921,16 +921,16 @@ Proof.
   if_tac; [|if_tac].
   - destruct H; subst; simpl.
     rewrite lookup_singleton_ne; last by rewrite /adr_add; intros [=]; lia.
-    rewrite if_true; last by rewrite app_length; lia.
+    rewrite if_true; last by rewrite length_app; lia.
     rewrite lookup_app.
     by destruct (lookup_lt_is_Some_2 (rev l') (Z.to_nat (o' - o))) as (? & ->); first lia.
   - destruct H0 as [-> Hrange].
-    rewrite app_length /= in Hrange.
+    rewrite length_app /= in Hrange.
     assert (o' = o + Z.of_nat (length (rev l')))%Z as -> by (rewrite /adr_range in H; lia).
-    rewrite /adr_add lookup_singleton /= list_lookup_middle //; lia.
+    rewrite /adr_add lookup_singleton_eq /= list_lookup_middle //; lia.
   - rewrite lookup_singleton_ne //.
     rewrite /adr_add /=; intros [=]; subst; contradiction H0.
-    split; auto; rewrite app_length /=; lia.
+    split; auto; rewrite length_app /=; lia.
 Qed.
 
 Lemma lookup_of_loc : forall m {F} ge G b lo z loc,
@@ -940,7 +940,7 @@ Proof.
   intros.
   evar (f : nat -> (sharedR (leibnizO resource))).
   etrans; [|etrans; [apply (lookup_singleton_list (seq 0 z) f (b, lo) loc)|]].
-  2: { rewrite seq_length; if_tac; last done.
+  2: { rewrite length_seq; if_tac; last done.
        destruct loc, H; subst; simpl.
        rewrite lookup_seq_lt /=; last lia.
        subst f; instantiate (1 := fun i => res_of_loc m ge G (b, i + lo)); simpl.
@@ -1096,10 +1096,10 @@ Proof.
       rewrite elem_of_app; auto.
     * rewrite right_id.
       apply map_disjoint_dom_1, Hf.
-      { simpl; rewrite !elem_of_app !elem_of_list_singleton; auto. }
-      { simpl; rewrite !elem_of_app !elem_of_list_singleton; auto. }
+      { simpl; rewrite !elem_of_app !list_elem_of_singleton; auto. }
+      { simpl; rewrite !elem_of_app !list_elem_of_singleton; auto. }
       intros ->.
-      contradiction (Hsep a); rewrite /= ?elem_of_app elem_of_list_singleton; auto. }
+      contradiction (Hsep a); rewrite /= ?elem_of_app list_elem_of_singleton; auto. }
   match goal with |-context[?a ⋅ ?b] => replace (a ⋅ b) with (map_union a b) end.
   rewrite big_opM_union //.
   rewrite IHl' //.
@@ -1136,7 +1136,7 @@ Proof.
   rewrite seq_S foldl_snoc.
   destruct (funspec_of_loc ge G (Pos.of_nat (1 + n), 0)) eqn: Hfun.
   - destruct (eq_dec l (Pos.of_nat (1 + n), 0)).
-    + subst; rewrite lookup_insert /=.
+    + subst; rewrite lookup_insert_eq /=.
       destruct (Pos.ltb_spec0 (Pos.of_nat (S n)) (Pos.of_nat (S (n + 1)))); last lia.
       rewrite Hfun //.
     + rewrite lookup_insert_ne // IHn.

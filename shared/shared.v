@@ -890,7 +890,7 @@ Qed.
 
 End shared.
 
-Arguments YES {_ _ _} _ _ _.
-Arguments NO {_ _ _} _ _.
-Arguments dfrac_of {_ _ _} _.
-Arguments val_of {_ _ _} _.
+Arguments YES {_ _ _ _} _ _ _.
+Arguments NO {_ _ _ _} _ _.
+Arguments dfrac_of {_ _ _ _} _.
+Arguments val_of {_ _ _ _} _.

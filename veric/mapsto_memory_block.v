@@ -1052,8 +1052,6 @@ Proof.
   rewrite bi.later_and; iIntros "(>(% & % & %) & H)".
   iSplit; first done.
   iApply (timeless with "H").
-  apply big_sepL_timeless'; first apply _.
-  destruct (size_chunk_nat_pos ch); destruct x; try done; simpl in *; lia.
 Qed.
 
 Global Instance mapsto_timeless sh t v1 v2 : Timeless (mapsto sh t v1 v2).

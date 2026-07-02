@@ -1,4 +1,5 @@
-(* A core wp-based separation logic for Clight, in the Iris style. Maybe VeriC can be built on top of this? *)
+(* A core wp-based separation logic for Clight, in the Iris style.
+   VeriC is now built on top of this simpler logic. *)
 Set Warnings "-notation-overridden,-custom-entry-overridden,-hiding-delimiting-key".
 Require Import VST.veric.juicy_base.
 Require Import VST.veric.juicy_mem.
@@ -1135,7 +1136,7 @@ Proof.
 (*  assert (forall n, @dry_safeN _ _ _ OK_ty (genv_symb_injective) (cl_core_sem ge) dryspec
             ge n z (State f s Kstop ve te) m ∧ φ) as H'; last (split; [eapply H' | apply (H' 0)]; eauto). *)
   (*intros n;*)
-  eapply ouPred.pure_soundness, (step_fupdN_soundness_no_lc'(Σ := Σ) _ (S n) O); [apply _..|].
+  eapply pure_soundness, (step_fupdN_soundness_no_lc'(Σ := Σ) _ (S n) O); [apply _..|].
   simpl; intros. apply (embed_emp_valid_inj(PROP2 := monPred environ_index _)). iIntros "_".
   iMod (H Hinv) as (???) "?".
   iStopProof.

@@ -440,101 +440,16 @@ Fixpoint FDM_entries (funs1 funs2 : list (ident * fundef function)): option (lis
                         end
   end.
 
-Ltac apply_semax_body P :=
-lazymatch goal with |- semax_body ?V ?G ?F (?I, ?S) =>
-  lazymatch type of P with semax_body ?V' ?G' ?F' ?IS =>
-    let IS' := eval hnf in IS in 
-    let I' := constr:(fst IS') in 
-    let I' := eval red in I' in
-    let I := eval simpl in I in
-    (tryif unify I I' then idtac
-     else fail 1 "You have provided a semax_body proof for" I' " but required is a semax_body proof for" I);
-    (tryif change G with G' then idtac
-     else fail 1 "Lemma" P "has a Gprog argument of" G' "but you have provided" G);
-    (tryif change F with F' then idtac
-     else fail 1 "Lemma" P "has a fundef argument of" F' "but you have provided" F);
-    let S2 := constr:(snd IS) in 
-    (tryif change (I,S) with IS then idtac
-     else fail 1 "Lemma" P "has a funspec argument of" S "but you have provided" S);
-    (tryif constr_eq V V' then idtac
-     else ((apply (semax_body_permute_Vprog V V'); 
-               [ compute; Vprogs_domain_eq; reflexivity 
-               | ] ) 
-           || (let a := constr:(map fst V') in 
-            let b := constr:(map fst V) in
-            let a' := constr:(map string_of_ident a) in let a' := eval compute in a' in
-            let b' := constr:(map string_of_ident b) in let b' := eval compute in b' in
-            ident_diff a b ltac:(fun l => 
-            ident_diff b a ltac:(fun r =>
-            fail 1 "Lemma" P "has a Vprog argument of" V' "but you have provided" V "
-Present only in" V' ":" l "
-Present only in" V ":" r "
-(if those lists are both empty then the domains are the same but the types differ)")))));
-    exact P
-  end
-end.
-
-Ltac solve_SF_internal P :=
-   (tryif (let a := constr:(@P) in idtac) then idtac else fail "Lemma" P "does not exist");
-  apply SF_internal_sound; eapply _SF_internal;
-   [  reflexivity 
-   | repeat apply Forall_cons; try apply Forall_nil; try computable; reflexivity
-   | unfold var_sizes_ok; repeat constructor; try (simpl; rep_lia)
-   | reflexivity
-   | match goal with OK: QPprogram_OK _, CSeq: @eq compspecs _ _ |- _ =>
-       rewrite <- CSeq;
-       clear CSeq OK
-     end;
-     apply_semax_body P
-   | eexists; split; 
-       [ fast_Qed_reflexivity || fail "Lookup for a function identifier in QPglobalenv failed"
-       | fast_Qed_reflexivity || fail "Lookup for a function pointer block in QPglobalenv failed"
-   ]    ].
-
-(* slower*)
-Ltac solve_SF_external_with_intuition B :=
-   first [simpl; split; intuition; [ try solve [entailer!] | try apply B | eexists; split; cbv; reflexivity ] | idtac].
-
-(*Slightly faster*)
-Ltac solve_SF_external B :=
-  first [ split3;
-            [ reflexivity 
-            | reflexivity 
-            | split3;
-                [ reflexivity
-                | reflexivity
-                | split3;
-                   [ left; trivial
-                   | clear; intros ? ? ? ?; try solve [entailer!];
-                     repeat match goal with |- (let (y, z) := ?x in _) _ && _ |--  _ =>
-                                     destruct x as [y z]
-                     end
-                    | split; [ try apply B | eexists; split; cbv; reflexivity ]
-            ] ] ]
-        | idtac ].
-
-Fixpoint FDM_entries (funs1 funs2 : list (ident * fundef function)): option (list (ident * fundef function * fundef function)) :=
-  match funs1 with
-    nil => Some nil
-  | (i, fd1) :: funs => match find_id i funs2 with 
-                           None => FDM_entries funs funs2 
-                         | Some fd2 => match FDM_entries funs funs2 with
-                                         None => None
-                                       | Some l => Some ((i, fd1, fd2) :: l)
-                                       end
-                        end
-  end.
-
 Definition check_FDM_entry (Imports1 Imports2:funspecs)  x :=
   match x with (i, fd1, fd2) =>
    match fd1, fd2 with
       Internal _, Internal _ => fd1 = fd2
     | Internal _, External _ _ _ _ => match find_id i Imports2 with
-                                        None => False
+                                        None => False%type
                                       | Some phi2 => signature_of_fundef fd1 = signature_of_fundef fd2
                                       end
     | External _ _ _ _, Internal _ => match find_id i Imports1 with
-                                        None => False
+                                        None => False%type
                                       | Some phi1 => signature_of_fundef fd1 = signature_of_fundef fd2
                                       end
     | External _ _ _ _, External _ _ _ _ => fd1 = fd2
@@ -884,7 +799,7 @@ intros.
 destruct v as [G c].
 exists G.
 (* after Rocq 9.2 the second apply is subsumed by the first, cf rocq-prover/rocq#21036 *)
-apply (@Build_Component _ _ _ _ _ _ _ _ (Comp_prog_OK c)); try first [apply c | apply (Comp_MkInitPred c)]; auto.
+apply (@Build_Component _ _ _ _ _ _ _ _ _ _ _ (Comp_prog_OK c)); try first [apply c | apply (Comp_MkInitPred c)]; auto.
 intros.
 rewrite Forall_forall in H0.
 apply find_id_e in E0.
@@ -914,7 +829,7 @@ intros.
 destruct v as [G c].
 exists G.
 (* after Rocq 9.2 the second apply is subsumed by the first, cf rocq-prover/rocq#21036 *)
-apply (@Build_Component _ _ _ _ _ _ _ _ (Comp_prog_OK c)); try first [apply c | apply (Comp_MkInitPred c)]; auto.
+apply (@Build_Component _ _ _ _ _ _ _ _ _ _ _ (Comp_prog_OK c)); try first [apply c | apply (Comp_MkInitPred c)]; auto.
 + rewrite H. apply c.
 + intros. destruct (find_funspec_sub Exports' Exports H H0 _ _ E0) as [psi [Psi PSI]].
   apply (Comp_G_Exports c) in Psi.
@@ -1063,7 +978,7 @@ assert (LNR1: list_norepet (map fst (QPvarspecs p) ++ map fst (G ++ Imports'))).
 { rewrite map_app, <- H, <- map_app. apply c. }
 exists G.
 (* after Rocq 9.2 the second apply is subsumed by the first, cf rocq-prover/rocq#21036 *)
-apply (@Build_Component _ _ _ _ _ _ _ _ (Comp_prog_OK c)); try first [apply c | apply (Comp_MkInitPred c)]; auto.
+apply (@Build_Component _ _ _ _ _ _ _ _ _ _ _ (Comp_prog_OK c)); try first [apply c | apply (Comp_MkInitPred c)]; auto.
 + rewrite <- H. apply c.
 + intros.
   assert (LNR2: list_norepet (map fst (QPvarspecs p) ++ map fst (Imports' ++ G))).
@@ -3152,6 +3067,7 @@ end.
 
 
 Ltac solve_SF_internal P :=
+   (tryif (let a := constr:(@P) in idtac) then idtac else fail "Lemma" P "does not exist");
   apply SF_internal_sound; eapply _SF_internal;
    [  reflexivity 
    | repeat apply Forall_cons; try apply Forall_nil; try computable; reflexivity

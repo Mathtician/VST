@@ -91,7 +91,7 @@ Global Transparent Ptrofs.repr.
 Lemma pure_and : forall {M} P Q, bi_pure(PROP := ouPredI M) (P /\ Q) = (⌜P⌝ ∧ ⌜Q⌝).
 Proof.
   intros.
-  ouPred.unseal; apply IProp_eq; extensionality n x; apply prop_ext; tauto.
+  ouPred.unseal. apply IProp_eq; extensionality n x; apply prop_ext; done.
 Qed.
 
 (* up? *)
@@ -225,7 +225,6 @@ Definition for_ret_assert (I: assert) (Post: ret_assert) :=
 Lemma RA_normal_loop2_ret_assert:
   forall Inv R, RA_normal (loop2_ret_assert Inv R) = Inv.
 Proof. destruct R; reflexivity. Qed.
-#[export] Hint Rewrite RA_normal_loop2_ret_assert : ret_assert.
 
 Lemma overridePost_normal:
   forall P Q, overridePost P (normal_ret_assert Q) = normal_ret_assert P.

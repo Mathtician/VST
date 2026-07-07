@@ -1037,7 +1037,7 @@ Proof.
       rewrite Eb //.
     + iDestruct "BI" as (b' fu (? & ? & ? & ? & ? & ? & ? & ? & ?)) "_"; congruence. }
   exists f; split; auto.
-  clear H; match goal with H : ⊢ ?P |- ?Q => assert (P ⊢ ⌜Q⌝) as HQ; last by rewrite HQ in H; apply ouPred.pure_soundness in H end.
+  clear H; match goal with H : ⊢ ?P |- ?Q => assert (P ⊢ ⌜Q⌝) as HQ; last by rewrite HQ in H; apply pure_soundness in H end.
   iIntros "[BE | BI]".
   - rewrite /believe_external /=.
     if_tac; last done.
@@ -1157,7 +1157,7 @@ Proof.
     iApply jsafe_step; rewrite /jstep_ex.
     iIntros (?) "(Hm & ?)".
     destruct (build_call_temp_env f args) as (te & Hte).
-    { rewrite /= in H18; rewrite H18 map_length // in Hlen. }
+    { rewrite /= in H18; rewrite H18 length_map // in Hlen. }
     iMod (alloc_stackframe with "Hm") as (?? [??]) "(Hm & stack)"; [try done.. |].
     { unfold var_sizes_ok in Hvars.
       rewrite !Forall_forall in Hvars, COMPLETE |- *.
@@ -1325,16 +1325,16 @@ Proof.
     destruct TC3 as [TC3 TC4].
     eapply typecheck_environ_sub in TC3; [| eauto].
     auto. }
-  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((_ & H) & _)"; destruct HGG; iApply (typecheck_exprlist_sound_cenv_sub with "H").
+  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((_ & H) & _)"; destruct HGG; iApply (typecheck_exprlist_sound_cenv_sub(CS := CS) with "H").
   iDestruct "H" as "(H & >%HARGS)".
   fold args in HARGS; fold args' in HARGS.
   setoid_rewrite tc_exprlist_sub; [|done..]. setoid_rewrite tc_expr_sub; [|done..].
-  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((_ & H) & _)"; destruct HGG; iApply (tc_exprlist_length with "H").
+  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((_ & H) & _)"; destruct HGG; iApply (tc_exprlist_length(CS := CS) with "H").
   iDestruct "H" as "(H & >%LENbl)".
   assert (LENargs: Datatypes.length clientparams = Datatypes.length args).
   { rewrite LENbl eval_exprlist_length //. }
   assert (TCD': tc_environ Delta' rho) by eapply TC3.
-  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((_ & H) & _)"; iApply (tc_eval_exprlist with "H").
+  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((_ & H) & _)"; iApply (tc_eval_exprlist(CS' := CS) with "H").
   iDestruct "H" as "(H & >%TCargs)"; fold args in TCargs.
   iSpecialize ("ClientAdaptation" $! x (ge_of rho, args)).
   rewrite (bi.pure_True (argsHaveTyps _ _)).
@@ -1348,7 +1348,7 @@ Proof.
   assert (CSUBpsi:cenv_sub (@cenv_cs CS) psi).
   { destruct HGG as [CSUB' HGG]. apply (cenv_sub_trans CSUB' HGG). }
   destruct HGG as [CSUB HGG].
-  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((H & _) & _)"; iApply (typecheck_expr_sound_cenv_sub with "H").
+  rewrite (add_and (_ ∧ ▷ _) (▷_)); last by iIntros "H"; iNext; iDestruct "H" as "((H & _) & _)"; iApply (typecheck_expr_sound_cenv_sub(CS := CS) with "H").
   iDestruct "H" as "(H & >%Heval_eq)"; rewrite Heval_eq in EvalA.
   subst rho; iApply (@semax_call_aux CS' _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ (normal_ret_assert
                    (∃ old : val, assert_of (substopt ret (` old) (monPred_at F)) ∗

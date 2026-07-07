@@ -1199,8 +1199,8 @@ Proof.
   rewrite big_opM_opL' //.
   destruct (funspec_of_loc ge G (Pos.of_nat (S n), 0)) eqn: Hfun.
   * iMod (own_update with "Hf") as "($ & Hf)".
-    { apply (gmap_view.gmap_view_alloc _ (Pos.of_nat (S n), 0) dfrac.DfracDiscarded); last done.
-      apply init_funspecs_over; auto. }
+    { rewrite fmap_insert. apply (gmap_view.gmap_view_alloc(V := iris.algebra.agree.agreeR _) _ (Pos.of_nat (S n), 0) dfrac.DfracDiscarded); [|done..].
+      rewrite lookup_fmap init_funspecs_over; auto. }
     erewrite Hfun_bounds in Hbounds by done; inv Hbounds; simpl.
     rewrite !big_sepM_singleton /res_of_loc /inflate_loc.
     specialize (Hm (Pos.of_nat (S n)) ltac:(lia)); rewrite Hfun in Hm; rewrite Hm Hfun /func_at elem_of_to_agree.
@@ -1270,7 +1270,7 @@ Proof.
   rewrite filter_cons; destruct (decide (P a)); last auto; simpl.
   constructor; auto.
   rewrite !in_map_iff in Hout |- *.
-  intros (? & ? & [??%elem_of_list_In]%elem_of_list_In%elem_of_list_filter); eauto.
+  intros (? & ? & [??%list_elem_of_In]%list_elem_of_In%list_elem_of_filter); eauto.
 Qed.
 
 Lemma big_sepL_absorb : ∀ {A} (Φ : nat → A → mpred) l,

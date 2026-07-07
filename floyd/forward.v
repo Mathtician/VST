@@ -4618,8 +4618,8 @@ Ltac destruct_it B :=
 
 Ltac destruct_PRE_POST_lets := (* see issue #839 *)
 repeat lazymatch goal with 
-| |- semax _ (sepcon (close_precondition _ ?B) _) _ _ => destruct_it B
-| |- semax _ _ _ (frame_ret_assert (function_body_ret_assert _ ?B) _) => destruct_it B
+| |- semax _ _ (bi_sep (close_precondition _ ?B) _) _ _ => destruct_it B
+| |- semax _ _ _ _ (frame_ret_assert (function_body_ret_assert _ ?B) _) => destruct_it B
 end;
 repeat change (fst (?A,?B)) with A in *;
 repeat change (snd (?A,?B)) with B in *.

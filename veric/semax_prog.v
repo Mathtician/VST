@@ -1057,7 +1057,7 @@ assert (HGG: cenv_sub (@cenv_cs CS) (globalenv prog)).
  }
 
 assert (⊢ ▷ (<absorb> P a (filter_genv psi, args) ∗ fungassert Delta (filter_genv psi, args) -∗
-  jsafeN OK_spec psi (E a) z (Clight_core.Callstate f args Kstop))) as Hsafe; last by apply bi.wand_entails, ouPred.later_soundness.
+  jsafeN OK_spec psi (E a) z (Clight_core.Callstate f args Kstop))) as Hsafe; last by apply bi.wand_entails, later_soundness.
 iIntros.
 iPoseProof Prog_OK as "#Prog_OK".
 set (f0 := mkfunction Tvoid cc_default nil nil nil Sskip).

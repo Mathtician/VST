@@ -141,8 +141,7 @@ Proof.
       rewrite /local /= /lift1; unfold_lift.
       iSplit.
       { iPureIntro; destruct ty; done. }
-      iFrame.
-      iExists (k msg); iSplit; done.
+      by iFrame.
 Qed.
 
 End IO_Dry.

@@ -899,7 +899,7 @@ Proof.
         apply (leibniz_equiv(A := gmap.gmapR _ (exclR (leibnizO _)))).
         rewrite ora_comm.
         intros i; rewrite gmap.lookup_op.
-        destruct (eq_dec i t); [subst; rewrite lookup_insert lookup_singleton | rewrite lookup_insert_ne // lookup_singleton_ne // left_id //].
+        destruct (eq_dec i t); [subst; rewrite lookup_insert_eq lookup_singleton_eq | rewrite lookup_insert_ne // lookup_singleton_ne // left_id //].
         rewrite newer_out //.
         replace (Zlength h') with (Zlength t'); auto.
       + rewrite -> upd_Znth_diff' by (rewrite -> ?Zlength_map, ?Zlength_upto; auto).
@@ -1014,7 +1014,7 @@ Proof.
         apply (leibniz_equiv(A := gmap.gmapR _ (exclR (leibnizO _)))).
         rewrite ora_comm.
         intros i; rewrite gmap.lookup_op.
-        destruct (eq_dec i (Znth a t')); [subst; rewrite lookup_singleton lookup_insert | rewrite lookup_singleton_ne // lookup_insert_ne // left_id //].
+        destruct (eq_dec i (Znth a t')); [subst; rewrite lookup_singleton_eq lookup_insert_eq | rewrite lookup_singleton_ne // lookup_insert_ne // left_id //].
         rewrite newer_out //.
         apply Forall2_Znth; auto; last lia.
         erewrite <- (sublist_same_gen _ _ h); first done; lia.

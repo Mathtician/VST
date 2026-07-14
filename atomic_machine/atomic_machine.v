@@ -98,13 +98,15 @@ Require Import compcert.common.Values.
 Require Import compcert.common.Memory.
 Require Import compcert.common.AST.
 
-Require Import Coq.Arith.PeanoNat.
-Require Import Coq.Strings.String.
-Require Import List.
+From Stdlib Require Import Arith.PeanoNat.
+From Stdlib Require Import Strings.String.
+From Stdlib Require Import List.
 Import ListNotations.
 
 Require Import VST.sepcomp.semantics.
 Require Import VST.sepcomp.event_semantics.
+Require Import stdpp.gmap.
+Import Address Values.
 
 (** ** Reader/writer states
 
@@ -112,13 +114,13 @@ Require Import VST.sepcomp.event_semantics.
     threads are between Try and Commit of a step that reads the byte;
     [Wst] means some thread is mid-step on a write to it. *)
 
-Inductive RWState : Type :=
+Inductive rw_state : Type :=
 | Rst (n : nat)
 | Wst.
 
-Definition rw_map := block -> Z -> RWState.
+Definition rw_map := gmap address rw_state.
 
-Definition initial_rw : rw_map := fun _ _ => Rst 0.
+Definition initial_rw : rw_map := ∅.
 
 (** ** Footprints of event traces *)
 
@@ -157,33 +159,93 @@ Definition trace_reads (T : list mem_event) (b : block) (ofs : Z) : bool :=
     requirement on written bytes is an assertion of the machine invariant,
     so a violation shows up as stuckness rather than being papered over. *)
 
-Definition claim (T : list mem_event) (mu mu' : rw_map) : Prop :=
+Fixpoint change_rw_state (f : option rw_state -> option (option rw_state)) mu (b : block) (ofs : Z) n : option rw_map :=
+  match n with
+  | O => Some mu
+  | S n' => match f (mu !! (b, ofs)) with
+            | Some (Some s) => change_rw_state f (<[(b, ofs) := s]> mu) b (ofs + 1) n'
+            | Some None => change_rw_state f (delete (b, ofs) mu) b (ofs + 1) n'
+            | None => None
+            end
+  end.
+
+Definition claim_read := change_rw_state
+  (λ s, match s with Some (Rst n) => Some (Some (Rst (S n))) | _ => None end).
+
+Definition claim_write := change_rw_state
+  (λ s, match s with Some (Rst O) => Some (Some Wst) | _ => None end).
+
+Definition claim_alloc := change_rw_state
+  (λ s, match s with None => Some (Some (Rst O)) | _ => None end).
+
+Fixpoint claim (T : list mem_event) (mu : rw_map) : option rw_map :=
+  match T with
+  | [] => Some mu
+  | e :: es =>
+      match e with
+      | Read b ofs n bytes => option_bind _ _ (claim es) (claim_read mu b ofs (length bytes))
+      | Write b ofs bytes => option_bind _ _ (claim es) (claim_write mu b ofs (length bytes))
+      | Alloc b lo hi => option_bind _ _ (claim es) (claim_alloc mu b lo (Z.to_nat (hi - lo)))
+      | Free lb => Some mu (* free happens in commit *)
+      end
+  end.
+
+(*Definition claim (T : list mem_event) (mu mu' : rw_map) : Prop :=
   forall b ofs,
     if trace_writes T b ofs then mu b ofs = Rst 0 /\ mu' b ofs = Wst
     else if trace_reads T b ofs then
       exists n, mu b ofs = Rst n /\ mu' b ofs = Rst (S n)
-    else mu' b ofs = mu b ofs.
+    else mu' b ofs = mu b ofs.*)
 
-Definition commit (T : list mem_event) (mu mu' : rw_map) : Prop :=
+Definition commit_read := change_rw_state
+  (λ s, match s with Some (Rst (S n)) => Some (Some (Rst n)) | _ => None end).
+
+Definition commit_write := change_rw_state
+  (λ s, match s with Some Wst => Some (Some (Rst O)) | _ => None end).
+
+Definition commit_free := change_rw_state
+  (λ s, match s with Some _ => Some None | _ => None end).
+
+Fixpoint commit (T : list mem_event) (mu : rw_map) : option rw_map :=
+  match T with
+  | [] => Some mu
+  | e :: es =>
+      match e with
+      | Read b ofs n bytes => option_bind _ _ (commit es) (commit_read mu b ofs (length bytes))
+      | Write b ofs bytes => option_bind _ _ (commit es) (commit_write mu b ofs (length bytes))
+      | Alloc b lo hi => Some mu (* alloc happens in claim *)
+      | Free lb => option_bind _ _ (commit es)
+          (foldr (λ '(b, lo, hi) o, match o with
+             | Some mu => commit_free mu b lo (Z.to_nat (hi - lo))
+             | None => None end) (Some mu) lb)
+      end
+  end.
+
+(*Definition commit (T : list mem_event) (mu mu' : rw_map) : Prop :=
   forall b ofs,
     if trace_writes T b ofs then mu b ofs = Wst /\ mu' b ofs = Rst 0
     else if trace_reads T b ofs then
       exists n, mu b ofs = Rst (S n) /\ mu' b ofs = Rst n
-    else mu' b ofs = mu b ofs.
+    else mu' b ofs = mu b ofs.*)
 
 (** Sanity check: with no interference in between, Commit restores the
     reader/writer map that Try started from. *)
+Definition is_read_or_write e :=
+  match e with Read _ _ _ _ | Write _ _ _ => true | _ => false end.
+
 Lemma commit_undoes_claim : forall T mu mu' mu'',
-  claim T mu mu' -> commit T mu' mu'' ->
-  forall b ofs, mu'' b ofs = mu b ofs.
+  Forall is_read_or_write T ->
+  claim T mu = Some mu' -> commit T mu' = Some mu'' ->
+  forall l, mu'' !! l = mu !! l.
 Proof.
-  intros T mu mu' mu'' Hclaim Hcommit b ofs.
-  specialize (Hclaim b ofs); specialize (Hcommit b ofs).
-  destruct (trace_writes T b ofs).
-  - destruct Hclaim, Hcommit; congruence.
-  - destruct (trace_reads T b ofs); [|congruence].
-    destruct Hclaim as [n [? ?]], Hcommit as [n' [? ?]]; congruence.
-Qed.
+  intros T mu mu' mu'' Hrw Hclaim Hcommit l.
+  induction Hrw in mu', mu'', Hclaim, Hcommit |- *; simpl in *.
+  - inv Hclaim. done.
+  - destruct x eqn: Hx; try done.
+    + destruct claim_write eqn: Hclaimx; inv Hclaim.
+      admit. (* prove something about claim_write and commit_write *)
+    + admit.
+Admitted.
 
 (** ** Atomic operations
 
